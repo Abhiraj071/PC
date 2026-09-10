@@ -272,11 +272,13 @@ class AIInfoExtractor:
                 if not brand_name:
                     brand_name = clean_lines[0][:30]
                 if not product_name:
-                    # Find first line that isn't brand_name, has valid alphabetic words, and lacks noise symbols
+                    # Find first line that isn't brand_name, has valid alphabetic words, lacks noise symbols, and is not a nutrition table entry
+                    nutrition_ignore = ['sodium', 'carbohydrate', 'energy', 'protein', 'fat', 'sugar', 'sugars', 'kcal', 'cholesterol', 'trans fat', 'saturated fat', 'per 100g', 'per serve', 'approx', 'serve size', 'ingredients', 'edible vegetable oil', 'salt', 'potatoes']
                     cand = [
                         c for c in clean_lines 
                         if c.lower() != brand_name.lower() 
                         and not any(ch in c for ch in ['|', '{', '}', '~', '_', '@', '#', '$', '%', '^', '*', '=', '<', '>', '/', '\\'])
+                        and not any(nutr in c.lower() for nutr in nutrition_ignore)
                         and len([w for w in c.split() if w.isalpha() and len(w) >= 3]) >= 1
                     ]
                     if cand:

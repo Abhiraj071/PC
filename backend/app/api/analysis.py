@@ -69,8 +69,13 @@ def run_analysis(scan_id: str, db: Session = Depends(get_db)):
     confidences = []
     qualities = []
 
-    for img_path in side_images:
-        res = ocr_extractor.extract(img_path)
+    # Process side images concurrently for high-speed analysis
+    from concurrent.futures import ThreadPoolExecutor
+    max_workers = min(4, len(side_images)) if side_images else 1
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        results = list(executor.map(ocr_extractor.extract, side_images))
+
+    for res in results:
         norm_txt = (res.get("normalized_text") or "").strip()
         if norm_txt:
             extracted_sections.append(norm_txt)

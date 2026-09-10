@@ -87,60 +87,66 @@ class OCRExtractor:
                 if pil_img.mode != 'RGB':
                     pil_img = pil_img.convert('RGB')
 
-                # Pass 1: Standard Full-Color OCR (PSM 3 - fully automatic page segmentation)
+                # Auto-resize if image is excessively large (> 1600px) to prevent slow Tesseract execution
+                w, h = pil_img.size
+                max_dim = 1600
+                if max(w, h) > max_dim:
+                    scale = max_dim / float(max(w, h))
+                    pil_img = pil_img.resize((int(w * scale), int(h * scale)), Image.Resampling.BILINEAR)
+
+                # Primary Pass: Single-pass image_to_data captures text, layout, and confidence simultaneously
                 try:
-                    p1_text = pytesseract.image_to_string(pil_img, config='--psm 3')
-                    if p1_text and len(p1_text.strip()) > 0:
-                        all_passes_text.append(p1_text)
-                except Exception as e1:
-                    print(f"[OCR] Pass 1 error: {e1}")
-
-                # Pass 2: Grayscale + CLAHE Contrast Enhancement
-                try:
-                    import cv2
-                    import numpy as np
-                    np_img = np.array(pil_img)
-                    gray = cv2.cvtColor(np_img, cv2.COLOR_RGB2GRAY)
-                    clahe = cv2.createCLAHE(clipLimit=2.5, tileGridSize=(8, 8))
-                    enhanced = clahe.apply(gray)
-                    p2_text = pytesseract.image_to_string(enhanced, config='--psm 11')
-                    if p2_text and len(p2_text.strip()) > 0:
-                        all_passes_text.append(p2_text)
-                except Exception as e2:
-                    print(f"[OCR] Pass 2 error: {e2}")
-
-                # Pass 3: Single uniform block mode (PSM 6) for label text blocks
-                try:
-                    p3_text = pytesseract.image_to_string(pil_img, config='--psm 6')
-                    if p3_text and len(p3_text.strip()) > 0:
-                        all_passes_text.append(p3_text)
-                except Exception as e3:
-                    print(f"[OCR] Pass 3 error: {e3}")
-
-                # Merge unique lines across passes while maintaining order
-                lines_seen = set()
-                merged_lines = []
-                for pass_txt in all_passes_text:
-                    for line in pass_txt.splitlines():
-                        cleaned_line = line.strip()
-                        norm_key = re.sub(r'\s+', ' ', cleaned_line.lower())
-                        if len(cleaned_line) >= 2 and norm_key not in lines_seen:
-                            lines_seen.add(norm_key)
-                            merged_lines.append(cleaned_line)
-
-                if merged_lines:
-                    raw_text = "\n".join(merged_lines)
-
-                # Confidence calculation
-                try:
-                    data = pytesseract.image_to_data(pil_img, output_type=pytesseract.Output.DICT)
+                    data = pytesseract.image_to_data(pil_img, config='--psm 3', output_type=pytesseract.Output.DICT)
                     conf_list = [int(c) for c in data.get('conf', []) if str(c).isdigit() and int(c) > 0]
                     if conf_list:
                         confidence = round(sum(conf_list) / (len(conf_list) * 100.0), 2)
                     else:
                         confidence = 0.85
-                except Exception:
-                    confidence = 0.85
+
+                    lines_dict = {}
+                    for i, word in enumerate(data.get('text', [])):
+                        w_str = (word or '').strip()
+                        if not w_str:
+                            continue
+                        line_key = (data['block_num'][i], data['par_num'][i], data['line_num'][i])
+                        if line_key not in lines_dict:
+                            lines_dict[line_key] = []
+                        lines_dict[line_key].append(w_str)
+
+                    if lines_dict:
+                        raw_text = "\n".join(" ".join(words) for words in lines_dict.values())
+                except Exception as e1:
+                    print(f"[OCR] Primary Pass error: {e1}")
+
+                # Targeted Fallback: Only if primary pass found very little text (< 40 characters)
+                if not raw_text or len(raw_text.strip()) < 40:
+                    try:
+                        import cv2
+                        import numpy as np
+                        np_img = np.array(pil_img)
+                        gray = cv2.cvtColor(np_img, cv2.COLOR_RGB2GRAY)
+                        clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+                        enhanced = clahe.apply(gray)
+                        p2_data = pytesseract.image_to_data(enhanced, config='--psm 6', output_type=pytesseract.Output.DICT)
+                        
+                        p2_lines = {}
+                        for i, word in enumerate(p2_data.get('text', [])):
+                            w_str = (word or '').strip()
+                            if not w_str:
+                                continue
+                            line_key = (p2_data['block_num'][i], p2_data['par_num'][i], p2_data['line_num'][i])
+                            if line_key not in p2_lines:
+                                p2_lines[line_key] = []
+                            p2_lines[line_key].append(w_str)
+
+                        p2_text = "\n".join(" ".join(words) for words in p2_lines.values())
+                        if len(p2_text.strip()) > len(raw_text.strip()):
+                            raw_text = p2_text
+                            p2_confs = [int(c) for c in p2_data.get('conf', []) if str(c).isdigit() and int(c) > 0]
+                            if p2_confs:
+                                confidence = round(sum(p2_confs) / (len(p2_confs) * 100.0), 2)
+                    except Exception as e2:
+                        print(f"[OCR] Enhanced fallback error: {e2}")
 
             except Exception as e:
                 print(f"[OCR] pytesseract extraction error on {image_path}: {e}")

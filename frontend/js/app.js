@@ -421,14 +421,35 @@ function setupScanner() {
                 const file = e.target.files[0];
                 const reader = new FileReader();
                 reader.onload = (event) => {
-                    const dataUrl = event.target.result;
-                    appState.capturedSides[appState.activeSide] = {
-                        dataUrl: dataUrl,
-                        file: file,
-                        timestamp: Date.now()
+                    const rawUrl = event.target.result;
+                    const img = new Image();
+                    img.onload = () => {
+                        const maxDim = 1600;
+                        let w = img.width;
+                        let h = img.height;
+                        if (Math.max(w, h) > maxDim) {
+                            const scale = maxDim / Math.max(w, h);
+                            w = Math.round(w * scale);
+                            h = Math.round(h * scale);
+                        }
+                        const canvas = document.createElement('canvas');
+                        canvas.width = w;
+                        canvas.height = h;
+                        const ctx = canvas.getContext('2d');
+                        ctx.drawImage(img, 0, 0, w, h);
+                        const dataUrl = canvas.toDataURL('image/jpeg', 0.90);
+                        canvas.toBlob((blob) => {
+                            const optimizedFile = new File([blob || file], `${appState.activeSide}_side_${Date.now()}.jpg`, { type: 'image/jpeg' });
+                            appState.capturedSides[appState.activeSide] = {
+                                dataUrl: dataUrl,
+                                file: optimizedFile,
+                                timestamp: Date.now()
+                            };
+                            autoAdvanceToNextSide();
+                            renderSidesUI();
+                        }, 'image/jpeg', 0.90);
                     };
-                    autoAdvanceToNextSide();
-                    renderSidesUI();
+                    img.src = rawUrl;
                 };
                 reader.readAsDataURL(file);
             }
