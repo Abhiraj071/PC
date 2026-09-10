@@ -479,8 +479,22 @@ function renderSidesUI() {
 
     const countEl = document.getElementById('captured-count');
     const proceedCountEl = document.getElementById('btn-proceed-count');
+    const btnProceed = document.getElementById('btn-proceed-analysis');
+
     if (countEl) countEl.textContent = count;
     if (proceedCountEl) proceedCountEl.textContent = count;
+
+    if (btnProceed) {
+        if (count >= 1) {
+            btnProceed.removeAttribute('disabled');
+            btnProceed.className = 'btn btn-primary btn-lg rounded-pill px-5 py-3 fw-bold w-100 shadow';
+            btnProceed.innerHTML = `<i class="bi bi-cpu-fill me-2"></i> Proceed to AI Compliance Analysis (${count}/6 Sides Captured)`;
+        } else {
+            btnProceed.setAttribute('disabled', 'true');
+            btnProceed.className = 'btn btn-secondary btn-lg rounded-pill px-5 py-3 fw-bold w-100 shadow-sm';
+            btnProceed.innerHTML = `<i class="bi bi-lock-fill me-2"></i> Capture Product Label to Proceed (0/6)`;
+        }
+    }
 
     // Stepper Pills State
     PACKAGING_SIDES.forEach(s => {
@@ -731,18 +745,8 @@ function capturePhotoFromCamera() {
     const video = document.getElementById('webcam-video');
     const canvas = document.getElementById('camera-canvas');
     const alignmentAlert = document.getElementById('alignment-alert');
-    const alignmentAlertText = document.getElementById('alignment-alert-text');
 
     if (!video || !canvas) return;
-
-    if (!isProductVisibleInFrame) {
-        if (alignmentAlert && alignmentAlertText) {
-            alignmentAlertText.textContent = "Product packaging label is not visible or clear in the viewfinder. Please place product inside the targeting frame under good lighting.";
-            alignmentAlert.classList.remove('d-none');
-        }
-        return;
-    }
-
     if (alignmentAlert) alignmentAlert.classList.add('d-none');
 
     const width = video.videoWidth || 1280;
@@ -775,8 +779,21 @@ function capturePhotoFromCamera() {
             }, 300);
         }
 
-        autoAdvanceToNextSide();
-        renderSidesUI();
+        // Count total captured
+        let totalCaptured = 0;
+        PACKAGING_SIDES.forEach(s => {
+            if (appState.capturedSides[s.key] && appState.capturedSides[s.key].dataUrl) totalCaptured++;
+        });
+
+        if (totalCaptured === 6) {
+            renderSidesUI();
+            setTimeout(() => {
+                submitMultiSideScan();
+            }, 400);
+        } else {
+            autoAdvanceToNextSide();
+            renderSidesUI();
+        }
     }, 'image/jpeg', 0.95);
 }
 
@@ -837,8 +854,8 @@ function submitMultiSideScan() {
         if (appState.capturedSides[s.key] && appState.capturedSides[s.key].dataUrl) count++;
     });
 
-    if (count < 6) {
-        alert("Please capture photos of all 6 sides of the product packaging (Front, Back, Left, Right, Top, Bottom) before analyzing.");
+    if (count < 1) {
+        alert("Please capture at least 1 side (preferably Front product label) to proceed to analysis.");
         return;
     }
 
