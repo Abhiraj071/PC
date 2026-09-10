@@ -841,6 +841,45 @@ function stopLiveCamera() {
     if (btnStop) btnStop.classList.add('d-none');
 }
 
+function handleDirectFileUpload(event) {
+    const input = event.target;
+    if (input.files && input.files[0]) {
+        const file = input.files[0];
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const dataUrl = e.target.result;
+            appState.capturedSides[appState.activeSide || 'front'] = {
+                dataUrl: dataUrl,
+                file: file,
+                timestamp: Date.now()
+            };
+            appState.capturedImage = dataUrl;
+
+            const preview1 = document.getElementById('preview-img-target');
+            const preview2 = document.getElementById('product-label-preview-img');
+            if (preview1) preview1.src = dataUrl;
+            if (preview2) preview2.src = dataUrl;
+
+            stopLiveCamera();
+            renderSidesUI();
+            uploadScanFile(file);
+        };
+        reader.readAsDataURL(file);
+    }
+}
+
+function useSampleDemoProduct() {
+    stopLiveCamera();
+    appState.capturedImage = "/reference Image/2.png";
+    const preview1 = document.getElementById('preview-img-target');
+    const preview2 = document.getElementById('product-label-preview-img');
+    if (preview1) preview1.src = appState.capturedImage;
+    if (preview2) preview2.src = appState.capturedImage;
+
+    showView('preview');
+    startAnalysisPipeline();
+}
+
 function triggerSimulatedScan() {
     appState.activeSide = 'front';
     renderSidesUI();
