@@ -411,48 +411,98 @@ let mediaStream = null;
 let frameAnalysisInterval = null;
 let isProductVisibleInFrame = false;
 
+function processFileToOptimizedPayload(file) {
+    return new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            const rawUrl = event.target.result;
+            const img = new Image();
+            img.onload = () => {
+                const maxDim = 1600;
+                let w = img.width;
+                let h = img.height;
+                if (Math.max(w, h) > maxDim) {
+                    const scale = maxDim / Math.max(w, h);
+                    w = Math.round(w * scale);
+                    h = Math.round(h * scale);
+                }
+                const canvas = document.createElement('canvas');
+                canvas.width = w;
+                canvas.height = h;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0, w, h);
+                const dataUrl = canvas.toDataURL('image/jpeg', 0.90);
+                canvas.toBlob((blob) => {
+                    resolve({
+                        dataUrl: dataUrl,
+                        file: new File([blob || file], `side_${Date.now()}.jpg`, { type: 'image/jpeg' }),
+                        timestamp: Date.now()
+                    });
+                }, 'image/jpeg', 0.90);
+            };
+            img.src = rawUrl;
+        };
+        reader.readAsDataURL(file);
+    });
+}
+
 function setupScanner() {
     renderSidesUI();
 
     const fileInput = document.getElementById('label-file-input');
     if (fileInput) {
-        fileInput.addEventListener('change', (e) => {
-            if (e.target.files && e.target.files[0]) {
-                const file = e.target.files[0];
-                const reader = new FileReader();
-                reader.onload = (event) => {
-                    const rawUrl = event.target.result;
-                    const img = new Image();
-                    img.onload = () => {
-                        const maxDim = 1600;
-                        let w = img.width;
-                        let h = img.height;
-                        if (Math.max(w, h) > maxDim) {
-                            const scale = maxDim / Math.max(w, h);
-                            w = Math.round(w * scale);
-                            h = Math.round(h * scale);
-                        }
-                        const canvas = document.createElement('canvas');
-                        canvas.width = w;
-                        canvas.height = h;
-                        const ctx = canvas.getContext('2d');
-                        ctx.drawImage(img, 0, 0, w, h);
-                        const dataUrl = canvas.toDataURL('image/jpeg', 0.90);
-                        canvas.toBlob((blob) => {
-                            const optimizedFile = new File([blob || file], `${appState.activeSide}_side_${Date.now()}.jpg`, { type: 'image/jpeg' });
-                            appState.capturedSides[appState.activeSide] = {
-                                dataUrl: dataUrl,
-                                file: optimizedFile,
-                                timestamp: Date.now()
-                            };
-                            autoAdvanceToNextSide();
-                            renderSidesUI();
-                        }, 'image/jpeg', 0.90);
-                    };
-                    img.src = rawUrl;
-                };
-                reader.readAsDataURL(file);
+        fileInput.addEventListener('change', async (e) => {
+            if (!e.target.files || e.target.files.length === 0) return;
+
+            const files = Array.from(e.target.files);
+            const alertBox = document.getElementById('alignment-alert');
+            const alertText = document.getElementById('alignment-alert-text');
+
+            if (files.length === 1) {
+                // Single file upload -> assign to currently active side
+                const payload = await processFileToOptimizedPayload(files[0]);
+                appState.capturedSides[appState.activeSide] = payload;
+                autoAdvanceToNextSide();
+                renderSidesUI();
+            } else {
+                // Multi-file upload: minimum 4, maximum 6
+                const filesToProcess = files.slice(0, 6);
+                if (alertBox && alertText) {
+                    alertBox.className = "alert alert-info py-2 small mb-3 border-info fw-bold text-dark rounded-3 text-center";
+                    alertText.innerHTML = `<span class="spinner-border spinner-border-sm me-2"></span> Loading & optimizing ${filesToProcess.length} packaging images...`;
+                    alertBox.classList.remove('d-none');
+                }
+
+                // Assign to sides: front, back, left, right, top, bottom
+                for (let i = 0; i < filesToProcess.length; i++) {
+                    const sideKey = PACKAGING_SIDES[i].key;
+                    const payload = await processFileToOptimizedPayload(filesToProcess[i]);
+                    appState.capturedSides[sideKey] = payload;
+                }
+
+                const totalCaptured = PACKAGING_SIDES.filter(s => appState.capturedSides[s.key] && appState.capturedSides[s.key].dataUrl).length;
+
+                if (alertBox && alertText) {
+                    if (totalCaptured < 4) {
+                        alertBox.className = "alert alert-warning py-2 small mb-3 border-warning fw-bold text-dark rounded-3 text-center";
+                        alertText.innerHTML = `<i class="bi bi-exclamation-triangle-fill me-1"></i> Loaded ${totalCaptured} image(s). <strong>Minimum 4 packaging photos required</strong>. Please upload or take ${4 - totalCaptured} more side(s).`;
+                        alertBox.classList.remove('d-none');
+                    } else {
+                        alertBox.className = "alert alert-success py-2 small mb-3 border-success fw-bold text-dark rounded-3 text-center";
+                        alertText.innerHTML = `<i class="bi bi-check-circle-fill me-1"></i> ${totalCaptured} packaging sides loaded successfully (Min 4 requirement met)! Ready to proceed to analysis.`;
+                        alertBox.classList.remove('d-none');
+                    }
+                }
+
+                if (files.length > 6) {
+                    alert("Maximum 6 packaging sides supported. The first 6 photos were assigned to your deck.");
+                }
+
+                autoAdvanceToNextSide();
+                renderSidesUI();
             }
+
+            fileInput.value = '';
         });
     }
 }
@@ -561,21 +611,21 @@ function renderSidesUI() {
         }).join('');
     }
 
-    // Submission Guard Button
+    // Submission Guard Button - Enforce MINIMUM 4, MAXIMUM 6
     const btnProceed = document.getElementById('btn-proceed-analysis');
     if (btnProceed) {
-        if (count >= 1) {
+        if (count >= 4) {
             btnProceed.removeAttribute('disabled');
             btnProceed.className = 'btn btn-success btn-lg rounded-pill px-5 py-3 fw-bold w-100 shadow-sm';
             if (count >= 6) {
                 btnProceed.innerHTML = '<i class="bi bi-check-circle-fill me-2 fs-5"></i> All 6 Sides Captured — Proceed to Legal Metrology Analysis &rarr;';
             } else {
-                btnProceed.innerHTML = `<i class="bi bi-arrow-right-circle-fill me-2 fs-5"></i> Proceed to Analysis (${count}/6 Sides Captured) &rarr;`;
+                btnProceed.innerHTML = `<i class="bi bi-arrow-right-circle-fill me-2 fs-5"></i> Proceed to Analysis (${count}/6 Sides — Min 4 Met) &rarr;`;
             }
         } else {
             btnProceed.setAttribute('disabled', 'true');
-            btnProceed.className = 'btn btn-secondary btn-lg rounded-pill px-5 py-3 fw-bold w-100 shadow-sm';
-            btnProceed.innerHTML = `<i class="bi bi-lock-fill me-2"></i> Capture Product Label Sides to Proceed (0/6 Captured)`;
+            btnProceed.className = 'btn btn-secondary btn-lg rounded-pill px-5 py-3 fw-bold w-100 shadow-sm opacity-75';
+            btnProceed.innerHTML = `<i class="bi bi-lock-fill me-2"></i> Minimum 4 Sides Required (${count}/4 Captured — Add ${4 - count} More)`;
         }
     }
 }
@@ -821,8 +871,12 @@ function openCapturedSnapPreviewModal(sideKey, dataUrl) {
             keepBtn.innerHTML = '<i class="bi bi-check-circle-fill me-1"></i> All 6 Done — Proceed to Analysis &rarr;';
             keepBtn.classList.remove('btn-success');
             keepBtn.classList.add('btn-primary');
+        } else if (capturedCount >= 4) {
+            keepBtn.innerHTML = `<i class="bi bi-check-circle-fill me-1"></i> Keep &amp; Next Side (${capturedCount}/6 — Min 4 Met)`;
+            keepBtn.classList.remove('btn-primary');
+            keepBtn.classList.add('btn-success');
         } else {
-            keepBtn.innerHTML = '<i class="bi bi-check-circle-fill me-1"></i> Keep &amp; Continue';
+            keepBtn.innerHTML = `<i class="bi bi-check-circle-fill me-1"></i> Keep &amp; Continue (${capturedCount}/4 Min)`;
             keepBtn.classList.remove('btn-primary');
             keepBtn.classList.add('btn-success');
         }
@@ -1011,8 +1065,8 @@ function submitMultiSideScan() {
         if (appState.capturedSides[s.key] && appState.capturedSides[s.key].dataUrl) count++;
     });
 
-    if (count < 1) {
-        alert("Please capture at least 1 photo of the product packaging before analyzing.");
+    if (count < 4) {
+        alert(`Minimum 4 packaging photos required for Legal Metrology compliance checks (Front, Back, and side/mfg panels). Currently, only ${count} side(s) are captured. Please capture or upload at least ${4 - count} more.`);
         return;
     }
 
@@ -1101,8 +1155,8 @@ function uploadAllCapturedSides() {
         btnRun.onclick = () => startAnalysisPipeline();
     }
 
-    if (fileCount < 1) {
-        updatePreviewUploadStatus('error', 'No packaging sides captured yet. Please take or select at least 1 photo.');
+    if (fileCount < 4) {
+        updatePreviewUploadStatus('error', `Minimum 4 packaging photos required for compliance checks. Only ${fileCount} uploaded. Please capture or upload at least 4 sides.`);
         return;
     }
 
