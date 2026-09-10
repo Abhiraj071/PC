@@ -620,34 +620,45 @@ function analyzeLiveFrame() {
     let totalBrightness = 0;
     let skinPixels = 0;
     let textEdgeCount = 0;
+    let roiPixels = 0;
+    let minLuma = 255;
+    let maxLuma = 0;
 
-    const totalPixels = pixels.length / 4;
+    // Evaluate ROI inside central 70% guide frame (x: 24 to 136, y: 18 to 102)
+    for (let y = 18; y < 102; y++) {
+        for (let x = 24; x < 136; x++) {
+            const i = (y * 160 + x) * 4;
+            const r = pixels[i];
+            const g = pixels[i + 1];
+            const b = pixels[i + 2];
 
-    for (let i = 0; i < pixels.length; i += 4) {
-        const r = pixels[i];
-        const g = pixels[i + 1];
-        const b = pixels[i + 2];
+            const brightness = 0.299 * r + 0.587 * g + 0.114 * b;
+            totalBrightness += brightness;
+            roiPixels++;
 
-        const brightness = 0.299 * r + 0.587 * g + 0.114 * b;
-        totalBrightness += brightness;
+            if (brightness < minLuma) minLuma = brightness;
+            if (brightness > maxLuma) maxLuma = brightness;
 
-        // Detect human face / skin pixels (RGB thresholding)
-        if (r > 60 && g > 35 && b > 20 && r > g && r > b && (r - Math.min(g, b)) > 12 && Math.abs(r - g) > 12) {
-            skinPixels++;
-        }
+            // Skin detection threshold
+            if (r > 70 && g > 40 && b > 25 && r > g && r > b && (r - Math.min(g, b)) > 15 && Math.abs(r - g) > 15) {
+                skinPixels++;
+            }
 
-        // Horizontal high-frequency edge check for packaging text lines
-        if (i > 4 * 160) {
-            const prevLuma = 0.299 * pixels[i - 4 * 160] + 0.587 * pixels[i - 4 * 160 + 1] + 0.114 * pixels[i - 4 * 160 + 2];
-            if (Math.abs(brightness - prevLuma) > 35) {
-                textEdgeCount++;
+            // High-contrast vertical text line edge detection
+            if (y > 18) {
+                const prevI = ((y - 1) * 160 + x) * 4;
+                const prevLuma = 0.299 * pixels[prevI] + 0.587 * pixels[prevI + 1] + 0.114 * pixels[prevI + 2];
+                if (Math.abs(brightness - prevLuma) > 42) {
+                    textEdgeCount++;
+                }
             }
         }
     }
 
-    const avgBrightness = totalBrightness / totalPixels;
-    const skinRatio = skinPixels / totalPixels;
-    const textEdgeRatio = textEdgeCount / totalPixels;
+    const avgBrightness = totalBrightness / roiPixels;
+    const skinRatio = skinPixels / roiPixels;
+    const textEdgeRatio = textEdgeCount / roiPixels;
+    const contrastSpread = maxLuma - minLuma;
 
     const hintText = document.getElementById('alignment-hint-text');
     const hintIcon = document.getElementById('alignment-hint-icon');
@@ -664,8 +675,8 @@ function analyzeLiveFrame() {
         if (hintIcon) hintIcon.className = 'bi bi-eye-slash-fill me-1';
         if (btnCapture) btnCapture.setAttribute('disabled', 'true');
     }
-    // 2. Product Package Label Detected (Text & high-frequency packaging edges present)
-    else if (textEdgeRatio >= 0.018) {
+    // 2. High-contrast Product Package Label Detected inside guide frame
+    else if (textEdgeRatio >= 0.034 && contrastSpread >= 65) {
         isProductVisibleInFrame = true;
         if (frameBox) frameBox.className = 'scanner-frame frame-valid';
         if (statusBadge) {
@@ -676,8 +687,8 @@ function analyzeLiveFrame() {
         if (hintIcon) hintIcon.className = 'bi bi-check-circle-fill me-1';
         if (btnCapture) btnCapture.removeAttribute('disabled');
     }
-    // 3. Dominant Human Face taking over viewfinder without product packaging text
-    else if (skinRatio > 0.45 && textEdgeRatio < 0.012) {
+    // 3. Human Face taking up camera view without product packaging text
+    else if (skinRatio > 0.40 && textEdgeRatio < 0.02) {
         isProductVisibleInFrame = false;
         if (frameBox) frameBox.className = 'scanner-frame frame-invalid';
         if (statusBadge) {
@@ -688,7 +699,7 @@ function analyzeLiveFrame() {
         if (hintIcon) hintIcon.className = 'bi bi-person-x-fill me-1';
         if (btnCapture) btnCapture.setAttribute('disabled', 'true');
     }
-    // 4. Position product inside guide frame
+    // 4. Align Product Package inside Guide Frame (default amber state)
     else {
         isProductVisibleInFrame = false;
         if (frameBox) frameBox.className = 'scanner-frame';
@@ -698,7 +709,7 @@ function analyzeLiveFrame() {
         }
         if (hintText) hintText.textContent = 'ALIGN PRODUCT INSIDE FRAME';
         if (hintIcon) hintIcon.className = 'bi bi-aspect-ratio me-1';
-        if (btnCapture) btnCapture.setAttribute('disabled', 'true');
+        if (btnCapture) btnCapture.removeAttribute('disabled');
     }
 }
 
