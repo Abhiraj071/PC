@@ -71,10 +71,10 @@
                         <button class="btn-scanshield-primary" onclick="triggerSimulatedScan()">
                             <i class="bi bi-camera-fill fs-5"></i> Scan Product <i class="bi bi-chevron-right ms-2"></i>
                         </button>
-                        <label for="label-file-input-home" class="btn-scanshield-outline m-0 cursor-pointer">
+                        <label for="label-file-input" class="btn-scanshield-outline m-0 cursor-pointer">
                             <i class="bi bi-image fs-5"></i> Upload Image <i class="bi bi-chevron-right ms-2"></i>
                         </label>
-                        <input type="file" id="label-file-input-home" accept="image/*" class="d-none" onchange="handleDirectFileUpload(event)">
+                        <input type="file" id="label-file-input" accept="image/*" class="d-none">
                     </div>
                 </div>
 
@@ -296,13 +296,10 @@
                         <button class="btn btn-outline-secondary rounded-pill px-3 py-3 fw-bold d-none" id="btn-stop-camera" onclick="stopLiveCamera()">
                             <i class="bi bi-camera-video-off me-1"></i> Stop Camera
                         </button>
-                        <label for="label-file-input-scanner" class="btn-scanshield-outline m-0 cursor-pointer py-3 px-4">
+                        <label for="label-file-input" class="btn-scanshield-outline m-0 cursor-pointer py-3 px-4">
                             <i class="bi bi-upload me-1 fs-5"></i> Upload Photo File
                         </label>
-                        <input type="file" id="label-file-input-scanner" accept="image/*" class="d-none" onchange="handleDirectFileUpload(event)">
-                        <button class="btn btn-outline-info rounded-pill px-3 py-3 fw-bold" onclick="useSampleDemoProduct()">
-                            <i class="bi bi-stars me-1"></i> Demo Product (Lay's)
-                        </button>
+                        <input type="file" id="label-file-input" accept="image/*" class="d-none">
                     </div>
 
                     <!-- 6-Side Captured Thumbnails Deck -->
