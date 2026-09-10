@@ -653,7 +653,7 @@ function analyzeLiveFrame() {
     const hintIcon = document.getElementById('alignment-hint-icon');
 
     // 1. Dark or covered camera
-    if (avgBrightness < 30) {
+    if (avgBrightness < 25) {
         isProductVisibleInFrame = false;
         if (frameBox) frameBox.className = 'scanner-frame frame-invalid';
         if (statusBadge) {
@@ -664,32 +664,8 @@ function analyzeLiveFrame() {
         if (hintIcon) hintIcon.className = 'bi bi-eye-slash-fill me-1';
         if (btnCapture) btnCapture.setAttribute('disabled', 'true');
     }
-    // 2. Human Face / Person Detected
-    else if (skinRatio > 0.14) {
-        isProductVisibleInFrame = false;
-        if (frameBox) frameBox.className = 'scanner-frame frame-invalid';
-        if (statusBadge) {
-            statusBadge.className = 'badge bg-danger text-white position-absolute bottom-0 start-50 translate-middle-x mb-3 px-3 py-2 border border-danger shadow';
-            statusBadge.innerHTML = '<i class="bi bi-person-x-fill me-1"></i> Face / Person Detected — Please point camera at a Product Package Label!';
-        }
-        if (hintText) hintText.textContent = 'FACE DETECTED — POINT AT PRODUCT';
-        if (hintIcon) hintIcon.className = 'bi bi-person-x-fill me-1';
-        if (btnCapture) btnCapture.setAttribute('disabled', 'true');
-    }
-    // 3. Missing packaging text / non-label room background
-    else if (textEdgeRatio < 0.038) {
-        isProductVisibleInFrame = false;
-        if (frameBox) frameBox.className = 'scanner-frame';
-        if (statusBadge) {
-            statusBadge.className = 'badge bg-warning text-dark position-absolute bottom-0 start-50 translate-middle-x mb-3 px-3 py-2 border border-warning shadow';
-            statusBadge.innerHTML = '<i class="bi bi-bounding-box me-1"></i> Position Product Package Label inside the guide frame';
-        }
-        if (hintText) hintText.textContent = 'ALIGN PRODUCT INSIDE FRAME';
-        if (hintIcon) hintIcon.className = 'bi bi-aspect-ratio me-1';
-        if (btnCapture) btnCapture.setAttribute('disabled', 'true');
-    }
-    // 4. Product Package Label Detected
-    else {
+    // 2. Product Package Label Detected (Text & high-frequency packaging edges present)
+    else if (textEdgeRatio >= 0.018) {
         isProductVisibleInFrame = true;
         if (frameBox) frameBox.className = 'scanner-frame frame-valid';
         if (statusBadge) {
@@ -699,6 +675,30 @@ function analyzeLiveFrame() {
         if (hintText) hintText.textContent = 'PRODUCT ALIGNED — READY TO SNAP!';
         if (hintIcon) hintIcon.className = 'bi bi-check-circle-fill me-1';
         if (btnCapture) btnCapture.removeAttribute('disabled');
+    }
+    // 3. Dominant Human Face taking over viewfinder without product packaging text
+    else if (skinRatio > 0.45 && textEdgeRatio < 0.012) {
+        isProductVisibleInFrame = false;
+        if (frameBox) frameBox.className = 'scanner-frame frame-invalid';
+        if (statusBadge) {
+            statusBadge.className = 'badge bg-danger text-white position-absolute bottom-0 start-50 translate-middle-x mb-3 px-3 py-2 border border-danger shadow';
+            statusBadge.innerHTML = '<i class="bi bi-person-x-fill me-1"></i> Face Detected — Please point camera at Product Package';
+        }
+        if (hintText) hintText.textContent = 'FACE DETECTED — POINT AT PRODUCT';
+        if (hintIcon) hintIcon.className = 'bi bi-person-x-fill me-1';
+        if (btnCapture) btnCapture.setAttribute('disabled', 'true');
+    }
+    // 4. Position product inside guide frame
+    else {
+        isProductVisibleInFrame = false;
+        if (frameBox) frameBox.className = 'scanner-frame';
+        if (statusBadge) {
+            statusBadge.className = 'badge bg-warning text-dark position-absolute bottom-0 start-50 translate-middle-x mb-3 px-3 py-2 border border-warning shadow';
+            statusBadge.innerHTML = '<i class="bi bi-bounding-box me-1"></i> Position Product Package Label inside the guide frame';
+        }
+        if (hintText) hintText.textContent = 'ALIGN PRODUCT INSIDE FRAME';
+        if (hintIcon) hintIcon.className = 'bi bi-aspect-ratio me-1';
+        if (btnCapture) btnCapture.setAttribute('disabled', 'true');
     }
 }
 
