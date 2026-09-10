@@ -172,19 +172,6 @@
             <!-- 2. SCAN VIEW (6-Side Guided Packaging Capture) -->
             <div id="view-scan" class="app-view hidden">
                 <div class="max-w-900 mx-auto">
-                    <!-- Title & Overall Progress Badge -->
-                    <div class="d-flex flex-wrap align-items-center justify-content-between mb-3 gap-2">
-                        <div>
-                            <h4 class="fw-bold mb-1"><i class="bi bi-box-seam text-primary me-2"></i>Multi-Side Product Photo Capture</h4>
-                            <p class="text-muted small mb-0">Capture photos of all 6 sides of the product packaging for Legal Metrology audit</p>
-                        </div>
-                        <div>
-                            <span id="side-progress-badge" class="badge bg-primary px-3 py-2 fs-6 rounded-pill shadow-sm">
-                                <i class="bi bi-camera-fill me-1"></i> Captured: <span id="captured-count">0</span> / 6 Sides
-                            </span>
-                        </div>
-                    </div>
-
                     <!-- 6-Side Stepper Navigation Pills -->
                     <div class="side-stepper-container mb-3 overflow-auto">
                         <div class="d-flex gap-2 min-w-max" id="side-stepper-pills">
@@ -218,24 +205,6 @@
                                 <span class="step-label">Bottom Side</span>
                                 <span class="step-status-badge" id="pill-badge-bottom"><i class="bi bi-circle"></i></span>
                             </button>
-                        </div>
-                    </div>
-
-                    <!-- Active Side Guidance Banner -->
-                    <div class="active-side-card card-scanshield p-3 mb-3 bg-light border-primary" id="active-side-guidance-card">
-                        <div class="d-flex align-items-center gap-3">
-                            <div class="active-side-icon-box bg-primary text-white rounded-3 p-3 text-center">
-                                <i id="active-side-icon" class="bi bi-box-seam fs-2"></i>
-                            </div>
-                            <div class="flex-grow-1">
-                                <div class="d-flex align-items-center gap-2 mb-1">
-                                    <span id="active-side-step-pill" class="badge bg-primary">Step 1 of 6</span>
-                                    <h6 id="active-side-title" class="fw-bold mb-0 text-dark">FRONT SIDE — Brand & Product Name</h6>
-                                </div>
-                                <p id="active-side-instruction" class="small text-muted mb-0">
-                                    Turn product to the front. Make sure Brand Name, Product Title, and front artwork are clearly visible inside the targeting frame.
-                                </p>
-                            </div>
                         </div>
                     </div>
 
