@@ -815,11 +815,29 @@ function openCapturedSnapPreviewModal(sideKey, dataUrl) {
     const sideObj = PACKAGING_SIDES.find(s => s.key === targetKey) || { label: targetKey };
     const modalImg = document.getElementById('modal-captured-preview-img');
     const modalSideName = document.getElementById('preview-side-name');
+    const keepBtn = document.getElementById('modal-keep-btn');
 
     const srcToUse = dataUrl || (appState.capturedSides[targetKey] ? appState.capturedSides[targetKey].dataUrl : appState.capturedImage);
 
     if (modalImg) modalImg.src = srcToUse;
     if (modalSideName) modalSideName.textContent = sideObj.label || targetKey;
+
+    // Count total captured sides
+    const capturedCount = PACKAGING_SIDES.filter(s => appState.capturedSides[s.key] && appState.capturedSides[s.key].dataUrl).length;
+    const isAllDone = capturedCount >= 6;
+
+    // Update button label based on whether this is the final photo
+    if (keepBtn) {
+        if (isAllDone) {
+            keepBtn.innerHTML = '<i class="bi bi-check-circle-fill me-1"></i> All 6 Done — Proceed to Analysis &rarr;';
+            keepBtn.classList.remove('btn-success');
+            keepBtn.classList.add('btn-primary');
+        } else {
+            keepBtn.innerHTML = '<i class="bi bi-check-circle-fill me-1"></i> Keep &amp; Continue';
+            keepBtn.classList.remove('btn-primary');
+            keepBtn.classList.add('btn-success');
+        }
+    }
 
     const modalEl = document.getElementById('snapPreviewModal');
     if (modalEl) {
@@ -847,6 +865,19 @@ function retakeActiveSide() {
 
 function confirmCapturedPreview() {
     renderSidesUI();
+
+    // Always close the modal first
+    const modalEl = document.getElementById('snapPreviewModal');
+    const bsModal = modalEl && typeof bootstrap !== 'undefined' ? bootstrap.Modal.getInstance(modalEl) : null;
+    if (bsModal) bsModal.hide();
+
+    // Count how many sides are captured
+    const capturedCount = PACKAGING_SIDES.filter(s => appState.capturedSides[s.key] && appState.capturedSides[s.key].dataUrl).length;
+
+    if (capturedCount >= 6) {
+        // All 6 sides captured — go straight to analysis after modal animation finishes
+        setTimeout(() => submitMultiSideScan(), 400);
+    }
 }
 
 function stopLiveCamera() {
