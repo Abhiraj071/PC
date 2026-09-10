@@ -503,6 +503,39 @@ function renderSidesUI() {
         }
     });
 
+    // Render Inline Captured Side Preview Card
+    const previewCard = document.getElementById('captured-side-preview-card');
+    const activeSideData = appState.capturedSides[appState.activeSide];
+
+    if (previewCard) {
+        if (activeSideData && activeSideData.dataUrl) {
+            previewCard.className = 'card-scanshield p-3 mb-3 bg-light border-success shadow-sm';
+            previewCard.innerHTML = `
+                <div class="d-flex align-items-center justify-content-between gap-3">
+                    <div class="d-flex align-items-center gap-3">
+                        <img src="${activeSideData.dataUrl}" class="rounded-3 border shadow-sm" style="width: 72px; height: 72px; object-fit: contain; background: #000;">
+                        <div>
+                            <span class="badge bg-success mb-1"><i class="bi bi-check-circle-fill me-1"></i> ${activeObj.label} Photo Captured</span>
+                            <h6 class="fw-bold text-dark mb-0">${activeObj.title}</h6>
+                            <small class="text-muted" style="font-size: 11px;">Snapped & ready for analysis</small>
+                        </div>
+                    </div>
+                    <div class="d-flex gap-2">
+                        <button type="button" class="btn btn-sm btn-outline-primary rounded-pill px-3" onclick="openCapturedSnapPreviewModal('${appState.activeSide}')">
+                            <i class="bi bi-eye me-1"></i> View
+                        </button>
+                        <button type="button" class="btn btn-sm btn-outline-danger rounded-pill px-3" onclick="retakeActiveSide()">
+                            <i class="bi bi-arrow-counterclockwise me-1"></i> Retake
+                        </button>
+                    </div>
+                </div>
+            `;
+        } else {
+            previewCard.className = 'd-none';
+            previewCard.innerHTML = '';
+        }
+    }
+
     // 6-Thumbnail Grid Deck
     const grid = document.getElementById('captured-thumbnails-grid');
     if (grid) {
@@ -778,19 +811,25 @@ function capturePhotoFromCamera() {
 }
 
 function openCapturedSnapPreviewModal(sideKey, dataUrl) {
-    const sideObj = PACKAGING_SIDES.find(s => s.key === sideKey) || { label: sideKey };
+    const targetKey = sideKey || appState.activeSide;
+    const sideObj = PACKAGING_SIDES.find(s => s.key === targetKey) || { label: targetKey };
     const modalImg = document.getElementById('modal-captured-preview-img');
     const modalSideName = document.getElementById('preview-side-name');
 
-    const srcToUse = dataUrl || (appState.capturedSides[sideKey] ? appState.capturedSides[sideKey].dataUrl : '');
+    const srcToUse = dataUrl || (appState.capturedSides[targetKey] ? appState.capturedSides[targetKey].dataUrl : appState.capturedImage);
 
     if (modalImg) modalImg.src = srcToUse;
-    if (modalSideName) modalSideName.textContent = sideObj.label || sideKey;
+    if (modalSideName) modalSideName.textContent = sideObj.label || targetKey;
 
     const modalEl = document.getElementById('snapPreviewModal');
-    if (modalEl && typeof bootstrap !== 'undefined') {
-        const bsModal = bootstrap.Modal.getOrCreateInstance(modalEl);
-        bsModal.show();
+    if (modalEl) {
+        if (typeof bootstrap !== 'undefined' && bootstrap.Modal) {
+            const bsModal = bootstrap.Modal.getOrCreateInstance(modalEl);
+            bsModal.show();
+        } else {
+            modalEl.classList.add('show');
+            modalEl.style.display = 'block';
+        }
     }
 }
 
