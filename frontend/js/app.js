@@ -585,6 +585,26 @@ function startLiveCamera() {
 
     if (alignmentAlert) alignmentAlert.classList.add('d-none');
 
+    if (mediaStream && mediaStream.active) {
+        if (video) {
+            video.srcObject = mediaStream;
+            video.style.setProperty('display', 'block', 'important');
+            video.classList.remove('d-none');
+            video.play().catch(err => console.warn("video.play error:", err));
+        }
+        if (placeholder) {
+            placeholder.style.setProperty('display', 'none', 'important');
+            placeholder.classList.add('d-none');
+            placeholder.classList.remove('d-flex');
+        }
+        if (frameBox) frameBox.style.display = 'flex';
+        if (btnStart) btnStart.classList.add('d-none');
+        if (btnCapture) btnCapture.classList.remove('d-none');
+        if (btnStop) btnStop.classList.remove('d-none');
+        startFrameQualityMonitor();
+        return;
+    }
+
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
         if (statusBadge) {
             statusBadge.className = 'badge bg-warning text-dark position-absolute bottom-0 start-50 translate-middle-x mb-3 px-3 py-2 border border-warning shadow';
@@ -904,9 +924,7 @@ function useSampleDemoProduct() {
 
 function triggerSimulatedScan() {
     appState.activeSide = 'front';
-    renderSidesUI();
     showView('scan');
-    startLiveCamera();
 }
 
 function submitMultiSideScan() {
