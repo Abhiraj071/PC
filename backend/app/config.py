@@ -2,6 +2,8 @@ import os
 from pydantic import ConfigDict
 from pydantic_settings import BaseSettings
 
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+
 class Settings(BaseSettings):
     APP_NAME: str = "ScanShield"
     ENVIRONMENT: str = "development"
@@ -13,11 +15,11 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 1440
     
-    DATABASE_URL: str = "sqlite:///./scanshield.db"
+    DATABASE_URL: str = f"sqlite:///{os.path.join(PROJECT_ROOT, 'scanshield.db').replace('\\', '/')}"
     
-    UPLOAD_DIR: str = "storage/uploads"
-    PREPROCESSED_DIR: str = "storage/preprocessed"
-    REPORT_DIR: str = "storage/reports"
+    UPLOAD_DIR: str = os.path.join(PROJECT_ROOT, "storage", "uploads")
+    PREPROCESSED_DIR: str = os.path.join(PROJECT_ROOT, "storage", "preprocessed")
+    REPORT_DIR: str = os.path.join(PROJECT_ROOT, "storage", "reports")
     
     TESSERACT_CMD: str = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
 

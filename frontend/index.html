@@ -321,17 +321,17 @@
                 </div>
 
                 <!-- Quality Check Alert -->
-                <div class="alert alert-success d-flex align-items-center p-3 mb-3 rounded-3">
-                    <i class="bi bi-check-circle-fill fs-4 text-success me-3"></i>
+                <div id="preview-status-alert" class="alert alert-success d-flex align-items-center p-3 mb-3 rounded-3">
+                    <i id="preview-status-icon" class="bi bi-check-circle-fill fs-4 text-success me-3"></i>
                     <div>
-                        <h6 class="fw-bold mb-1">Images Ready for Analysis</h6>
-                        <p class="small text-muted mb-0">All captured sides will be processed with Tesseract OCR &amp; AI extraction.</p>
+                        <h6 id="preview-status-title" class="fw-bold mb-1">Images Ready for Analysis</h6>
+                        <p id="preview-status-desc" class="small text-muted mb-0">All captured sides will be processed with Tesseract OCR &amp; AI extraction.</p>
                     </div>
                 </div>
 
                 <!-- Action Buttons -->
                 <div class="d-flex flex-column gap-3">
-                    <button class="btn-scanshield-primary py-3" onclick="startAnalysisPipeline()">
+                    <button id="btn-run-analysis" class="btn-scanshield-primary py-3" onclick="startAnalysisPipeline()">
                         <i class="bi bi-cpu-fill me-2"></i> Run Tesseract OCR &amp; AI Extraction <i class="bi bi-arrow-right ms-2"></i>
                     </button>
                     <button class="btn-scanshield-outline py-3" onclick="showView('scan')">

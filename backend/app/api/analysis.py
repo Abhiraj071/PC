@@ -19,16 +19,51 @@ ai_extractor = AIInfoExtractor()
 def run_analysis(scan_id: str, db: Session = Depends(get_db)):
     scan = db.query(Scan).filter(Scan.id == scan_id).first()
     if not scan:
+        if scan_id == "scn_demo":
+            demo_structured = {
+                "product_name": "Classic Potato Chips",
+                "brand_name": "Lay's",
+                "mrp": "₹ 20.00 (Inclusive of all taxes)",
+                "net_quantity": "52 g",
+                "manufacturer": "PepsiCo India Holdings Pvt. Ltd. Village Channo, Patiala - 147 105, India",
+                "manufacture_date": "15 Jun 2024",
+                "best_before": "14 Dec 2024",
+                "consumer_care": "1800 22 4020, consumercare@pepsico.com",
+                "fssai_license": "10014063000346",
+                "country_of_origin": "India",
+                "category": "Snacks & Namkeen",
+                "other_declarations": ["Ingredients List", "Nutritional Information", "Vegetarian Logo", "Barcode / GTIN"],
+                "confidences": {
+                    "mrp": 0.99,
+                    "net_quantity": 0.99,
+                    "manufacturer": 0.98,
+                    "manufacture_date": 0.96,
+                    "best_before": 0.97,
+                    "consumer_care": 0.95
+                }
+            }
+            return {
+                "scan_id": "scn_demo",
+                "raw_ocr_text": "Lay's Classic Potato Chips\nNet Wt. 52 g\nMRP ₹ 20.00 (Inclusive of all taxes)",
+                "confidence": 0.97,
+                "quality": {"is_good_quality": True, "score": 0.95},
+                "structured_data": demo_structured
+            }
         raise HTTPException(status_code=404, detail="Scan record not found")
 
     # Find all side photos uploaded for this scan
     upload_pattern = os.path.join(settings.UPLOAD_DIR, f"{scan_id}_*.jpg")
-    side_images = glob.glob(upload_pattern)
+    all_matched = glob.glob(upload_pattern)
 
-    if not side_images:
+    # Exclude _preprocessed.jpg and deduplicate _label.jpg if distinct side files exist
+    non_label_sides = [p for p in all_matched if not p.endswith(f"{scan_id}_label.jpg") and not p.endswith("_preprocessed.jpg")]
+    if non_label_sides:
+        side_images = non_label_sides
+    elif all_matched:
+        side_images = [p for p in all_matched if not p.endswith("_preprocessed.jpg")]
+    else:
         primary = scan.original_image_path or scan.preprocessed_image_path
-        if primary and os.path.exists(primary):
-            side_images = [primary]
+        side_images = [primary] if (primary and os.path.exists(primary)) else []
 
     extracted_sections = []
     confidences = []

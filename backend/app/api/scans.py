@@ -25,18 +25,19 @@ def upload_scan(
     filename = f"{scan_id}_label.jpg"
     original_path = os.path.join(settings.UPLOAD_DIR, filename)
 
+    # Use multi-file list if provided, otherwise fallback to single file
     upload_list = []
-    if files:
-        upload_list.extend(files)
-    if file and file not in upload_list:
-        upload_list.insert(0, file)
+    if files and len(files) > 0:
+        upload_list = [f for f in files if f and f.filename]
+    elif file and file.filename:
+        upload_list = [file]
 
     saved_files = []
     if upload_list:
         for idx, up_file in enumerate(upload_list):
             side_tag = "front"
-            if sides and idx < len(sides):
-                side_tag = sides[idx]
+            if sides and idx < len(sides) and sides[idx]:
+                side_tag = str(sides[idx]).strip()
             elif idx > 0:
                 side_tag = f"side_{idx}"
             
@@ -46,7 +47,7 @@ def upload_scan(
                 shutil.copyfileobj(up_file.file, buffer)
             saved_files.append(side_path)
 
-        # Primary label file is the first side image
+        # Primary label file is the first side image (usually front)
         shutil.copyfile(saved_files[0], original_path)
     else:
         # Create a blank 400x400 image placeholder if no file attached
@@ -87,6 +88,16 @@ def upload_scan(
 def get_scan(scan_id: str, db: Session = Depends(get_db)):
     scan = db.query(Scan).filter(Scan.id == scan_id).first()
     if not scan:
+        if scan_id == "scn_demo":
+            return {
+                "scan_id": "scn_demo",
+                "product_id": "prd_lays_classic_01",
+                "original_image_url": "",
+                "preprocessed_image_url": None,
+                "barcode_data": "8901499007567",
+                "status": "COMPLETED",
+                "created_at": None
+            }
         raise HTTPException(status_code=404, detail="Scan record not found")
     
     orig_name = os.path.basename(scan.original_image_path)

@@ -15,6 +15,7 @@ let appState = {
     currentInspection: null,
     capturedImage: null,
     activeSide: 'front',
+    uploadPromise: null,
     capturedSides: {
         front: null,
         back: null,
@@ -1014,9 +1015,50 @@ function submitMultiSideScan() {
     uploadAllCapturedSides();
 }
 
+function updatePreviewUploadStatus(status, errorMsg) {
+    const alertBox = document.getElementById('preview-status-alert');
+    const icon = document.getElementById('preview-status-icon');
+    const title = document.getElementById('preview-status-title');
+    const desc = document.getElementById('preview-status-desc');
+    const btnRun = document.getElementById('btn-run-analysis');
+
+    if (status === 'uploading') {
+        if (alertBox) alertBox.className = "alert alert-info d-flex align-items-center p-3 mb-3 rounded-3";
+        if (icon) icon.className = "spinner-border spinner-border-sm text-primary me-3";
+        if (title) title.textContent = "Uploading Packaging Photos...";
+        if (desc) desc.textContent = "Transferring captured packaging sides to server for analysis...";
+        if (btnRun) {
+            btnRun.disabled = true;
+            btnRun.className = "btn-scanshield-primary py-3 opacity-75";
+            btnRun.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> Uploading Photos to Server...';
+        }
+    } else if (status === 'ready') {
+        if (alertBox) alertBox.className = "alert alert-success d-flex align-items-center p-3 mb-3 rounded-3";
+        if (icon) icon.className = "bi bi-check-circle-fill fs-4 text-success me-3";
+        if (title) title.textContent = "Images Ready for Analysis";
+        if (desc) desc.textContent = "All packaging photos uploaded. Ready for Tesseract OCR & AI compliance check.";
+        if (btnRun) {
+            btnRun.disabled = false;
+            btnRun.className = "btn-scanshield-primary py-3";
+            btnRun.innerHTML = '<i class="bi bi-cpu-fill me-2"></i> Run Tesseract OCR &amp; AI Extraction <i class="bi bi-arrow-right ms-2"></i>';
+            btnRun.onclick = () => startAnalysisPipeline();
+        }
+    } else if (status === 'error') {
+        if (alertBox) alertBox.className = "alert alert-danger d-flex align-items-center p-3 mb-3 rounded-3";
+        if (icon) icon.className = "bi bi-exclamation-triangle-fill fs-4 text-danger me-3";
+        if (title) title.textContent = "Upload Issue Detected";
+        if (desc) desc.textContent = errorMsg || "Could not upload packaging photos. Please check connection and retry.";
+        if (btnRun) {
+            btnRun.disabled = false;
+            btnRun.className = "btn btn-danger py-3 fw-bold rounded-pill w-100 shadow-sm";
+            btnRun.innerHTML = '<i class="bi bi-arrow-repeat me-2"></i> Retry Photo Upload';
+            btnRun.onclick = () => uploadAllCapturedSides();
+        }
+    }
+}
+
 function uploadAllCapturedSides() {
     const formData = new FormData();
-    let primaryFile = null;
     let fileCount = 0;
 
     PACKAGING_SIDES.forEach(s => {
@@ -1026,37 +1068,68 @@ function uploadAllCapturedSides() {
             if (blob) {
                 formData.append('files', blob, `${s.key}.jpg`);
                 formData.append('sides', s.key);
-                if (!primaryFile) {
-                    primaryFile = blob;
-                }
                 fileCount++;
             }
         }
     });
 
-    if (primaryFile) {
-        formData.append('file', primaryFile, 'primary_label.jpg');
-    }
-
     showView('preview');
 
-    if (fileCount > 0) {
-        fetch(`${API_BASE}/api/scans`, {
-            method: 'POST',
-            body: formData
-        })
-        .then(res => res.json())
-        .then(data => {
-            appState.currentScan = data;
-        })
-        .catch(err => {
-            console.error("Scan upload error:", err);
-        });
+    const btnRun = document.getElementById('btn-run-analysis');
+    if (btnRun) {
+        btnRun.onclick = () => startAnalysisPipeline();
     }
+
+    if (fileCount < 1) {
+        updatePreviewUploadStatus('error', 'No packaging sides captured yet. Please take or select at least 1 photo.');
+        return;
+    }
+
+    updatePreviewUploadStatus('uploading');
+
+    appState.uploadPromise = fetch(`${API_BASE}/api/scans`, {
+        method: 'POST',
+        body: formData
+    })
+    .then(async res => {
+        const data = await res.json();
+        if (!res.ok || !data.scan_id) {
+            throw new Error(data.detail || "Failed to upload packaging photos to server");
+        }
+        appState.currentScan = data;
+        updatePreviewUploadStatus('ready');
+        return data;
+    })
+    .catch(err => {
+        console.error("Scan upload error:", err);
+        updatePreviewUploadStatus('error', err.message || "Failed to upload photos to server.");
+        throw err;
+    });
 }
 
 // Analysis Pipeline Execution on Real Uploaded File
-function startAnalysisPipeline() {
+async function startAnalysisPipeline() {
+    // If upload is currently in flight, wait for it
+    if (appState.uploadPromise) {
+        try {
+            await appState.uploadPromise;
+        } catch (e) {
+            console.warn("Analysis waiting on upload error:", e);
+        }
+    }
+
+    if (!appState.currentScan || !appState.currentScan.scan_id) {
+        updatePreviewUploadStatus('uploading');
+        try {
+            uploadAllCapturedSides();
+            await appState.uploadPromise;
+        } catch (err) {
+            updatePreviewUploadStatus('error', 'Photos have not finished uploading. Please tap Retry Photo Upload.');
+            return;
+        }
+    }
+
+    const scanId = appState.currentScan.scan_id;
     showView('analyzing');
     
     let progress = 0;
@@ -1070,14 +1143,12 @@ function startAnalysisPipeline() {
         if (percentText) percentText.innerText = `${progress}%`;
     }, 250);
 
-    const scanId = appState.currentScan ? appState.currentScan.scan_id : "scn_demo";
-    
     // Execute Backend Tesseract OCR & AI Extraction
     fetch(`${API_BASE}/api/analysis/${scanId}`, { method: 'POST' })
     .then(async res => {
         const data = await res.json();
         if (!res.ok) {
-            throw new Error(data.detail || "No valid product packaging label detected. A face, selfie, or non-packaging photo cannot be processed.");
+            throw new Error(data.detail || "No readable text detected on the package label. Please ensure the label is clear, well-lit, and not blurred.");
         }
         return data;
     })
@@ -1101,15 +1172,9 @@ function startAnalysisPipeline() {
         clearInterval(interval);
         console.error("Analysis pipeline error:", err);
 
-        // Show Scan Rejection Banner on Scan View instead of accepting invalid face/non-product photo
-        showView('scan');
-        const alignmentAlert = document.getElementById('alignment-alert');
-        const alignmentAlertText = document.getElementById('alignment-alert-text');
-        if (alignmentAlert && alignmentAlertText) {
-            alignmentAlertText.textContent = `❌ Scan Rejected: ${err.message}`;
-            alignmentAlert.className = "alert alert-danger py-2 small mb-3 border-danger fw-bold text-dark rounded-3";
-            alignmentAlert.classList.remove('d-none');
-        }
+        // Keep user on preview view and display error with retry
+        showView('preview');
+        updatePreviewUploadStatus('error', `Analysis: ${err.message}`);
     });
 }
 

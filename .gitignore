@@ -14,10 +14,13 @@ ENV/
 .env
 
 # Storage uploads (transient runtime files)
+storage/
 backend/storage/uploads/*
 !backend/storage/uploads/.gitkeep
 backend/storage/preprocessed/*
 !backend/storage/preprocessed/.gitkeep
+backend/storage/reports/*
+!backend/storage/reports/.gitkeep
 
 # Operating system
 .DS_Store
