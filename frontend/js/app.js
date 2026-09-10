@@ -934,6 +934,9 @@ function uploadScanFile(file) {
     const formData = new FormData();
     formData.append('file', file);
 
+    // Show preview immediately using the already-set dataUrl, then navigate
+    showView('preview');
+
     fetch(`${API_BASE}/api/scans`, {
         method: 'POST',
         body: formData
@@ -941,23 +944,20 @@ function uploadScanFile(file) {
     .then(res => res.json())
     .then(data => {
         appState.currentScan = data;
-        const imgUrl = data.original_image_path ? `${API_BASE}${data.original_image_path}` : appState.capturedImage;
-        if (imgUrl) {
+        // Keep the captured dataUrl as the visible preview (reliable on mobile).
+        // Store the server path for analysis but don't overwrite the img src
+        // unless the captured image is missing.
+        if (!appState.capturedImage && data.original_image_path) {
+            const imgUrl = `${API_BASE}${data.original_image_path}`;
             const preview1 = document.getElementById('preview-img-target');
             const preview2 = document.getElementById('product-label-preview-img');
             if (preview1) preview1.src = imgUrl;
             if (preview2) preview2.src = imgUrl;
         }
-        showView('preview');
     })
     .catch(err => {
         console.error("Scan upload error:", err);
-        const imgUrl = appState.capturedImage || "/reference Image/2.png";
-        const preview1 = document.getElementById('preview-img-target');
-        const preview2 = document.getElementById('product-label-preview-img');
-        if (preview1) preview1.src = imgUrl;
-        if (preview2) preview2.src = imgUrl;
-        showView('preview');
+        // Already on preview view — dataUrl already set, nothing more needed
     });
 }
 
