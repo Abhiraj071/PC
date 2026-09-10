@@ -59,12 +59,12 @@ class QuantityValidator:
                 "details": "Mandatory Net Quantity declaration missing (Violation of Rule 6(1)(c))"
             }
         
-        # Check standard units: g, kg, ml, l, L, count, N
-        match = re.search(r'\b\d+(?:\.\d+)?\s*(g|kg|gm|gms|ml|mL|l|L|ltr|count|N|n|pieces?|pcs)\b', str(qty), re.IGNORECASE)
+        # Check standard units: g, kg, ml, l, L, count, N, units, pieces, pens
+        match = re.search(r'\b\d+(?:\.\d+)?\s*(g|kg|gm|gms|ml|mL|l|L|ltr|count|N|n|pieces?|pcs|units?|u|gel\s*pens?|pens?|pencils?|items?)\b', str(qty), re.IGNORECASE)
         if match:
             return {
                 "status": "PASS",
-                "details": f"Net quantity ({qty}) declared in standard metric unit as per Rule 6(1)(c)"
+                "details": f"Net quantity ({qty}) declared in standard metric/number unit as per Rule 6(1)(c)"
             }
         return {
             "status": "NEEDS_REVIEW",
@@ -113,7 +113,8 @@ class ConsumerCareValidator:
                 "details": "Mandatory Consumer Care contact details not detected (Violation of Rule 6(1)(f))"
             }
         
-        has_phone = bool(re.search(r'\d{8,12}', str(cc)))
+        digits_only = re.sub(r'\D', '', str(cc))
+        has_phone = 8 <= len(digits_only) <= 12 or bool(re.search(r'\b(?:1800|1860)[\s-]?\d{2,4}[\s-]?\d{3,5}\b', str(cc)))
         has_email = "@" in str(cc)
         if has_phone or has_email:
             cc_clean = cc.replace('\n', ' ').strip()
@@ -264,10 +265,15 @@ class ComplianceEngine:
 
         # 6. Best Before / Expiry Date (LM-EXP-008)
         exp_val = (exp_date_val or "").strip()
+        category = structured_data.get("category", "")
         if exp_val and len(exp_val) > 2:
             exp_status = "PASS"
             exp_details = f"Expiry / Best Before declared as '{exp_val.replace(chr(10), ' ')}'"
             exp_conf = structured_data.get("confidences", {}).get("best_before", 0.95)
+        elif category in ["Stationery & Office Supplies", "Electronics & Appliances", "Hardware & Tools", "Garments & Textiles"]:
+            exp_status = "PASS"
+            exp_details = "Not mandatory for non-perishable / stationery commodities (Exempt under Rule 6(1)(d))"
+            exp_conf = 0.95
         else:
             exp_status = "NEEDS_REVIEW"
             exp_details = "Best Before / Expiry date not detected on label"

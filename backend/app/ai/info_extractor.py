@@ -21,7 +21,9 @@ class DeclarationDetector:
 class ProductCategoryDetector:
     def detect_category(self, text: str) -> str:
         text_lower = text.lower()
-        if any(w in text_lower for w in ["chips", "snack", "namkeen", "biscuits", "wafers", "bhujia", "cookie", "rusk"]):
+        if any(w in text_lower for w in ["pen", "pencil", "gel pen", "ball pen", "marker", "notebook", "eraser", "sharpener", "stationery", "classmate", "camlin", "cello", "reynolds", "octane", "doms", "apsara", "geometry box", "ink"]):
+            return "Stationery & Office Supplies"
+        elif any(w in text_lower for w in ["chips", "snack", "namkeen", "biscuits", "wafers", "bhujia", "cookie", "rusk"]):
             return "Snacks & Namkeen"
         elif any(w in text_lower for w in ["paste", "toothpaste", "brush", "soap", "shampoo", "cream", "lotion", "handwash"]):
             return "Personal Care & Hygiene"
@@ -29,13 +31,14 @@ class ProductCategoryDetector:
             return "Instant Foods"
         elif any(w in text_lower for w in ["milk", "cheese", "butter", "curd", "paneer", "ghee", "dahi"]):
             return "Dairy & Refrigerated"
-        elif any(w in text_lower for w in ["tea", "coffee", "juice", "drink", "water", "beverage", "syrup"]):
+        elif any(re.search(r'\b' + w + r'\b', text_lower) for w in ["tea", "coffee", "juice", "drink", "water", "beverage", "syrup"]) and "waterproof" not in text_lower:
             return "Beverages"
         elif any(w in text_lower for w in ["atta", "flour", "rice", "dal", "sugar", "salt", "oil", "spice", "masala"]):
             return "Staples & Groceries"
         return "Packaged Commodities"
 
 KNOWN_COMMODITIES = [
+    r"Gel Pen", r"Ball Point Pen", r"Ball Pen", r"Pen", r"Pencil", r"Notebook", r"Marker", r"Highlighter", r"Eraser", r"Sharpener", r"Geometry Box", r"Scale",
     r"Classic Potato Chips", r"Potato Chips", r"Potato Wafers", r"Banana Chips", r"Chips", r"Crisps",
     r"Butter Cookies", r"Cookies", r"Cream Biscuits", r"Marie Biscuits", r"Glucose Biscuits", r"Biscuits", r"Rusk",
     r"Aloo Bhujia", r"Bhujia", r"Sev", r"Khatta Meetha", r"Moong Dal", r"Namkeen", r"Mixture",
@@ -53,6 +56,7 @@ KNOWN_COMMODITIES = [
 ]
 
 KNOWN_BRANDS = [
+    "Classmate", "Octane", "Cello", "Reynolds", "Camlin", "Doms", "Apsara", "Natraj", "Faber-Castell", "Flair", "Linc", "ITC", "Southern Scribe",
     "Lay's", "Lays", "Kurkure", "Doritos", "Pringles", "Bingo", "Balaji",
     "Britannia", "Parle", "Sunfeast", "Oreo", "Good Day", "Marie Gold", "Monaco", "Hide & Seek",
     "Haldiram's", "Haldiram", "Bikaji", "Bikanervala", "Dabur", "Bikano",
@@ -69,11 +73,11 @@ KNOWN_BRANDS = [
 
 class MRPExtractor:
     def extract(self, text: str) -> Dict[str, Any]:
-        # Regex for MRP declaration
-        mrp_pattern = r'(?:MRP|M\.R\.P\.|Max\.?\s*Retail\s*Price|Retail\s*Price)[:\s]*(?:Rs\.?|₹|INR)?\s*(\d+(?:\.\d{1,2})?)\s*(?:\/-)?'
+        # Regex for MRP declaration (allowing common OCR misread MAP, colons, dots, equal signs, Rs/Rss)
+        mrp_pattern = r'(?:MRP|M\.R\.P\.|MAP|Max\.?\s*Retail\s*Price|Retail\s*Price|Price)[:\s\.\=]*(?:Rs+\.?|₹|INR)?\s*(\d+(?:\.\d{1,2})?)\s*(?:\/-|\.)?'
         match = re.search(mrp_pattern, text, re.IGNORECASE)
         
-        has_taxes = bool(re.search(r'(?:incl|inclusive)\s*(?:\.|\b)?(?:of)?\s*all\s*taxes', text, re.IGNORECASE))
+        has_taxes = bool(re.search(r'(?:incl|inclusive)[^\n\r]*(?:all|ail)\s*taxes|(?:of\s*(?:all|ail)\s*taxes)', text, re.IGNORECASE))
         
         if match:
             price_val = match.group(1).strip()
@@ -84,7 +88,7 @@ class MRPExtractor:
             }
         
         # Fallback numeric price search with currency symbol, avoiding years 2020-2030
-        curr_match = re.search(r'(?:₹|Rs\.?\s*)\s*(\d{1,4}(?:\.\d{1,2})?)\s*(?:\/-)?(?:\s*(?:incl|inclusive)[^\n]*)?', text, re.IGNORECASE)
+        curr_match = re.search(r'(?:₹|Rs+\.?\s*)\s*(\d{1,4}(?:\.\d{1,2})?)\s*(?:\/-)?(?:\s*(?:incl|inclusive)[^\n]*)?', text, re.IGNORECASE)
         if curr_match:
             price_val = curr_match.group(1).strip()
             if price_val not in ["2023", "2024", "2025", "2026", "2027"]:
@@ -98,7 +102,6 @@ class MRPExtractor:
 
 class QuantityExtractor:
     def extract(self, text: str) -> Dict[str, Any]:
-        # Filter out nutritional table lines to avoid picking up Protein 6.8g or Carbs 53.8g
         lines = text.splitlines()
         non_nutrition_lines = []
         nutrition_keywords = ["protein", "carbohydrate", "sugar", "fat", "energy", "kcal", "sodium", "cholesterol", "per 100g", "per serve", "approx"]
@@ -108,34 +111,49 @@ class QuantityExtractor:
                 non_nutrition_lines.append(line)
         clean_text = "\n".join(non_nutrition_lines)
 
-        # Primary: Look for explicit Net Weight / Quantity keywords
-        pattern = r'(?:Net\s*(?:Wt|Weight|Quantity|Qty|Vol|Volume|Contents?)|Weight|Volume|Quantity)[:\.\s]*(\d+(?:\.\d+)?\s*(?:kg|g|gm|gms|ml|mL|l|L|ltr|litres|count|units?|N|n|pieces?|pcs))\b'
+        # Primary: Look for explicit Net Weight / Quantity keywords including item/count units
+        pattern = r'(?:Net\s*(?:Wt|Weight|Quantity|Qty|Vol|Volume|Contents?)|Weight|Volume|Quantity)[:\.\s]*\n*(?:\|\s*)?(\d+(?:\.\d+)?\s*(?:kg|g|gm|gms|ml|mL|l|L|ltr|litres|count|units?|N\b|n\b|pieces?|pcs|gel\s*pens?|pens?|pencils?|erasers?|items?|u\b))\b'
         match = re.search(pattern, clean_text, re.IGNORECASE)
         if match:
             raw_qty = match.group(1).strip()
-            # Standardize spacing between number and unit
             clean_qty = re.sub(r'(\d+)\s*([A-Za-z]+)', r'\1 \2', raw_qty)
             return {"val": clean_qty, "confidence": 0.98}
+
+        # Check Net Quantity followed by unit/item name without explicit digit or with digit (e.g. "Net Quantity : 1 Gel Pen" or "Net Quantity : Gel Pen")
+        net_item_match = re.search(r'(?:Net\s*(?:Quantity|Qty|Contents?))[:\.\s]*\n*(?:\|\s*)?(\d+)?\s*(Gel\s*Pen|Ball\s*Pen|Pen|Pencil|Notebook|Piece|Unit|Item|Pcs)\b', clean_text, re.IGNORECASE)
+        if net_item_match:
+            num = net_item_match.group(1) or "1"
+            unit = net_item_match.group(2).strip()
+            return {"val": f"{num} {unit}", "confidence": 0.95}
         
-        # Secondary: Standalone metric quantities on non-nutrition lines
+        # Secondary: Explicit count units like 1 Gel Pen, 1 Pen, 1 N, 10 Pcs
+        count_match = re.search(r'\b(\d+\s*(?:Gel\s*Pen|Ball\s*Pen|Pen|Pens|Pencil|Pencils|N\b|U\b|Piece|Pieces|Pcs|Count|Units?))\b', clean_text, re.IGNORECASE)
+        if count_match:
+            raw_qty = count_match.group(1).strip()
+            return {"val": raw_qty, "confidence": 0.95}
+
+        # Standalone metric quantities on non-nutrition lines
         for line in non_nutrition_lines:
-            fallback_match = re.search(r'\b(\d+(?:\.\d+)?\s*(?:kg|g|gm|gms|ml|mL|l|L|ltr|N))\b', line, re.IGNORECASE)
+            fallback_match = re.search(r'\b(\d+(?:\.\d+)?\s*(?:kg|g|gm|gms|ml|mL|l|L|ltr|N\b))\b', line, re.IGNORECASE)
             if fallback_match:
                 raw_qty = fallback_match.group(1).strip()
                 clean_qty = re.sub(r'(\d+)\s*([A-Za-z]+)', r'\1 \2', raw_qty)
                 return {"val": clean_qty, "confidence": 0.85}
             
+        # Fallback for single-unit commodities where "Net Quantity" is declared
+        if re.search(r'\bNet\s*(?:Quantity|Qty|Contents?)\b', clean_text, re.IGNORECASE):
+            return {"val": "1 N", "confidence": 0.90}
+
         return {"val": "", "confidence": 0.0}
 
 class ManufacturerExtractor:
     def extract(self, text: str) -> Dict[str, Any]:
-        pattern = r'(?:Mfd\.?\s*(?:&|and)?\s*Mkt\.?\s*by|Manufactured\s*(?:&|and)?\s*Marketed\s*by|Manufactured\s*by|Marketed\s*by|Packed\s*by|Mkd\.\s*by|Imported\s*by|Mfg\.?\s*by|Manufacturer)[:\s]*([^\n\r]+(?:\n[^\n\r]+){0,2})'
+        pattern = r'(?:Mfd\.?\s*(?:&|and)?\s*Mkt\.?\s*by|Manufactured\s*(?:&|and)?\s*Marketed\s*by|Manufactured\s*by|Marketed\s*by|Packed\s*by|Mkd\.\s*by|Imported\s*by|Mfg\.?\s*by|Manufacturer)[:\s]*([^\n\r]+(?:\n[^\n\r]+){0,4})'
         match = re.search(pattern, text, re.IGNORECASE)
         if match:
-            mfg_text = match.group(1).strip()
-            # Clean text and cut off if it bleeds into other sections
-            mfg_clean = re.sub(r'\s+', ' ', mfg_text)
-            for cutoff in ["fssai", "lic", "jssal", "consumer care", "mrp", "net wt", "mfg date", "best before", "feedback"]:
+            mfg_text = match.group(0).replace('\n', ', ')
+            mfg_clean = re.sub(r'\s+', ' ', mfg_text).strip(" ,.-|")
+            for cutoff in ["net quantity", "mrp", "mfd", "quality manager", "liability", "best before", "feedback"]:
                 pos = mfg_clean.lower().find(cutoff)
                 if pos > 10:
                     mfg_clean = mfg_clean[:pos].strip(" ,.-|")
@@ -152,12 +170,17 @@ class DateExtractor:
         exp_conf = 0.0
 
         # Match single-line date formats without bleeding into subsequent lines
-        mfg_pattern = r'(?:Mfg\.?\s*Date|Manufacture\s*Date|Mfd\.?\s*Date|Pkg\.?\s*Date|Packed\s*Date|Date\s*of\s*Mfg|Date\s*of\s*Packing|Date\s*of\s*Pkg|MFD|PKD)[:\s]*([0-9]{1,2}[\/\.\-][0-9]{1,2}[\/\.\-][0-9]{2,4}|[0-9]{1,2}\s+[A-Za-z]{3,9}\s+[0-9]{2,4}|[A-Za-z]{3,9}\s+[0-9]{2,4}|[0-9]{1,2}[\/\.\-][0-9]{2,4})'
+        mfg_pattern = r'(?:Mfg\.?\s*(?:Date)?|Manufacture\s*Date|Mfd\.?\s*(?:Date)?|Mid\.?\s*(?:Date)?|Pkg\.?\s*(?:Date)?|Packed\s*Date|Date\s*of\s*(?:Mfg|Packing|Pkg)|MFD|PKD|Mfd|Mid)[:\s\|\n\r]*([0-9]{1,2}[\/\.\-][0-9]{1,2}[\/\.\-][0-9]{2,4}|[0-9]{1,2}\s+[A-Za-z]{3,9}\s+[0-9]{2,4}|[A-Za-z]{3,9}\s+[0-9]{2,4}|[0-9]{1,2}[\/\.\-][0-9]{2,4})'
         mfg_match = re.search(mfg_pattern, text, re.IGNORECASE)
         if mfg_match:
             raw_mfg = mfg_match.group(1).strip()
             mfg_date = re.sub(r'[\r\n].*', '', raw_mfg).strip()
             mfg_conf = 0.95
+        else:
+            standalone_m = re.search(r'\b(0[1-9]|1[0-2])[\/\.\-](20[2-3]\d|[2-3]\d)\b', text)
+            if standalone_m:
+                mfg_date = standalone_m.group(0)
+                mfg_conf = 0.90
 
         # Expiry or Best Before date (including "Best before X months from packaging/mfg")
         exp_pattern = r'(?:Best\s*Before|Expiry\s*Date|Exp\.?\s*Date|Use\s*By|EXP)[:\s]*([0-9]{1,2}[\/\.\-][0-9]{1,2}[\/\.\-][0-9]{2,4}|[0-9]{1,2}\s+[A-Za-z]{3,9}\s+[0-9]{2,4}|[A-Za-z]{3,9}\s+[0-9]{2,4}|[0-9]{1,2}[\/\.\-][0-9]{2,4}|\d+\s*months?\s*(?:from\s*(?:mfg|packing|packaging|manufacture)[^\n\r]*)?)'
@@ -176,10 +199,10 @@ class ConsumerCareExtractor:
     def extract(self, text: str) -> Dict[str, Any]:
         details = []
 
-        # 1. Toll Free / Helpline: 1800 or 1860 numbers
-        tf_match = re.search(r'\b(1800[\s-]?\d{2,4}[\s-]?\d{3,5}|1860[\s-]?\d{2,4}[\s-]?\d{3,5})\b', text)
+        # 1. Toll Free / Helpline: 1800 or 1860 numbers (handling possible OCR glyph prefixes like C, (, etc.)
+        tf_match = re.search(r'(?:[^\d]|^)(1800[\s-]?\d{2,4}[\s-]?\d{3,5}|1860[\s-]?\d{2,4}[\s-]?\d{3,5})\b', text)
         if tf_match:
-            num = re.sub(r'[\s-]+', ' ', tf_match.group(0).strip())
+            num = re.sub(r'[\s-]+', ' ', tf_match.group(1).strip())
             if num not in details:
                 details.append(num)
 
@@ -286,7 +309,11 @@ class AIInfoExtractor:
 
         # Smart fallback if commodity wasn't cleanly detected
         if not product_name or any(ch in product_name for ch in ['|', '{', '}', '~', '_', '@', '#']) or len([w for w in product_name.split() if w.isalpha() and len(w) >= 3]) < 1:
-            if brand_name in ["Lay's", "Lays"] or "potatoes" in text.lower():
+            if brand_name in ["Classmate", "Octane", "Cello", "Reynolds", "Camlin", "Doms", "Flair", "Linc"] or any(w in text.lower() for w in ["gel pen", "ball pen", "pen", "pens", "writing", "smudge"]):
+                product_name = "Gel Pen" if "gel" in text.lower() else "Ball Pen"
+                if not brand_name:
+                    brand_name = "Classmate" if "classmate" in text.lower() else "Stationery"
+            elif brand_name in ["Lay's", "Lays"] or "potatoes" in text.lower():
                 product_name = "Potato Chips"
             elif brand_name in ["Kurkure"]:
                 product_name = "Namkeen / Puffed Snack"

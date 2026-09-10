@@ -3,7 +3,9 @@
  * Main Application Logic & API Client
  */
 
-const API_BASE = window.location.origin;
+const API_BASE = (window.location.origin && window.location.origin !== 'null' && window.location.protocol.startsWith('http')) 
+    ? window.location.origin 
+    : 'http://localhost:8000';
 
 let appState = {
     user: null,
@@ -411,39 +413,49 @@ let mediaStream = null;
 let frameAnalysisInterval = null;
 let isProductVisibleInFrame = false;
 
-function processFileToOptimizedPayload(file) {
+function readFileAsDataUrl(file) {
     return new Promise((resolve) => {
-        const reader = new FileReader();
-        reader.onload = (event) => {
-            const rawUrl = event.target.result;
-            const img = new Image();
-            img.onload = () => {
-                const maxDim = 1600;
-                let w = img.width;
-                let h = img.height;
-                if (Math.max(w, h) > maxDim) {
-                    const scale = maxDim / Math.max(w, h);
-                    w = Math.round(w * scale);
-                    h = Math.round(h * scale);
+        if (!file) return resolve(null);
+        try {
+            const reader = new FileReader();
+            reader.onload = (e) => resolve(e.target.result);
+            reader.onerror = (e) => {
+                console.warn("FileReader error, falling back to createObjectURL:", e);
+                try {
+                    resolve(URL.createObjectURL(file));
+                } catch (err) {
+                    resolve(null);
                 }
-                const canvas = document.createElement('canvas');
-                canvas.width = w;
-                canvas.height = h;
-                const ctx = canvas.getContext('2d');
-                ctx.drawImage(img, 0, 0, w, h);
-                const dataUrl = canvas.toDataURL('image/jpeg', 0.90);
-                canvas.toBlob((blob) => {
-                    resolve({
-                        dataUrl: dataUrl,
-                        file: new File([blob || file], `side_${Date.now()}.jpg`, { type: 'image/jpeg' }),
-                        timestamp: Date.now()
-                    });
-                }, 'image/jpeg', 0.90);
             };
-            img.src = rawUrl;
-        };
-        reader.readAsDataURL(file);
+            reader.readAsDataURL(file);
+        } catch (e) {
+            console.error("FileReader exception:", e);
+            try {
+                resolve(URL.createObjectURL(file));
+            } catch (err) {
+                resolve(null);
+            }
+        }
     });
+}
+
+async function processFileToOptimizedPayload(file) {
+    const dataUrl = await readFileAsDataUrl(file);
+    return {
+        dataUrl: dataUrl,
+        file: file,
+        timestamp: Date.now()
+    };
+}
+
+function triggerMultiFileUpload() {
+    showView('scan');
+    stopLiveCamera();
+    const fileInput = document.getElementById('label-file-input');
+    if (fileInput) {
+        fileInput.value = '';
+        fileInput.click();
+    }
 }
 
 function setupScanner() {
@@ -452,54 +464,74 @@ function setupScanner() {
     const fileInput = document.getElementById('label-file-input');
     if (fileInput) {
         fileInput.addEventListener('change', async (e) => {
-            if (!e.target.files || e.target.files.length === 0) return;
+            const files = Array.from(e.target.files || []);
+            if (files.length === 0) return;
 
-            const files = Array.from(e.target.files);
-            const alertBox = document.getElementById('alignment-alert');
-            const alertText = document.getElementById('alignment-alert-text');
+            showView('scan');
+            stopLiveCamera();
+
+            const banner = document.getElementById('sides-requirement-banner');
+            if (banner) {
+                banner.className = "alert alert-info py-2 px-3 small border-0 rounded-3 mb-3 text-center d-flex align-items-center justify-content-center gap-2 shadow-sm";
+                banner.innerHTML = `<span class="spinner-border spinner-border-sm text-primary me-2"></span> <span>Loading <strong>${Math.min(files.length, 6)} packaging photo(s)</strong>...</span>`;
+            }
 
             if (files.length === 1) {
-                // Single file upload -> assign to currently active side
-                const payload = await processFileToOptimizedPayload(files[0]);
-                appState.capturedSides[appState.activeSide] = payload;
+                // Single file upload -> assign to active side, or first uncaptured side
+                let targetSide = appState.activeSide;
+                if (appState.capturedSides[targetSide] && appState.capturedSides[targetSide].dataUrl) {
+                    const emptySide = PACKAGING_SIDES.find(s => !appState.capturedSides[s.key] || !appState.capturedSides[s.key].dataUrl);
+                    if (emptySide) targetSide = emptySide.key;
+                }
+
+                const dataUrl = await readFileAsDataUrl(files[0]);
+                if (dataUrl) {
+                    appState.capturedSides[targetSide] = {
+                        dataUrl: dataUrl,
+                        file: files[0],
+                        timestamp: Date.now()
+                    };
+                }
                 autoAdvanceToNextSide();
                 renderSidesUI();
             } else {
                 // Multi-file upload: minimum 4, maximum 6
                 const filesToProcess = files.slice(0, 6);
-                if (alertBox && alertText) {
-                    alertBox.className = "alert alert-info py-2 small mb-3 border-info fw-bold text-dark rounded-3 text-center";
-                    alertText.innerHTML = `<span class="spinner-border spinner-border-sm me-2"></span> Loading & optimizing ${filesToProcess.length} packaging images...`;
-                    alertBox.classList.remove('d-none');
-                }
 
-                // Assign to sides: front, back, left, right, top, bottom
                 for (let i = 0; i < filesToProcess.length; i++) {
                     const sideKey = PACKAGING_SIDES[i].key;
-                    const payload = await processFileToOptimizedPayload(filesToProcess[i]);
-                    appState.capturedSides[sideKey] = payload;
-                }
-
-                const totalCaptured = PACKAGING_SIDES.filter(s => appState.capturedSides[s.key] && appState.capturedSides[s.key].dataUrl).length;
-
-                if (alertBox && alertText) {
-                    if (totalCaptured < 4) {
-                        alertBox.className = "alert alert-warning py-2 small mb-3 border-warning fw-bold text-dark rounded-3 text-center";
-                        alertText.innerHTML = `<i class="bi bi-exclamation-triangle-fill me-1"></i> Loaded ${totalCaptured} image(s). <strong>Minimum 4 packaging photos required</strong>. Please upload or take ${4 - totalCaptured} more side(s).`;
-                        alertBox.classList.remove('d-none');
-                    } else {
-                        alertBox.className = "alert alert-success py-2 small mb-3 border-success fw-bold text-dark rounded-3 text-center";
-                        alertText.innerHTML = `<i class="bi bi-check-circle-fill me-1"></i> ${totalCaptured} packaging sides loaded successfully (Min 4 requirement met)! Ready to proceed to analysis.`;
-                        alertBox.classList.remove('d-none');
+                    const dataUrl = await readFileAsDataUrl(filesToProcess[i]);
+                    if (dataUrl) {
+                        appState.capturedSides[sideKey] = {
+                            dataUrl: dataUrl,
+                            file: filesToProcess[i],
+                            timestamp: Date.now()
+                        };
                     }
                 }
 
                 if (files.length > 6) {
-                    alert("Maximum 6 packaging sides supported. The first 6 photos were assigned to your deck.");
+                    alert("Maximum 6 packaging photos allowed. The first 6 photos were assigned to your deck.");
                 }
 
                 autoAdvanceToNextSide();
                 renderSidesUI();
+            }
+
+            // Update status banner
+            const totalCaptured = PACKAGING_SIDES.filter(s => appState.capturedSides[s.key] && appState.capturedSides[s.key].dataUrl).length;
+            if (banner) {
+                if (totalCaptured >= 4) {
+                    banner.className = "alert alert-success py-2 px-3 small border-0 rounded-3 mb-3 text-center d-flex align-items-center justify-content-center gap-2 shadow-sm";
+                    banner.innerHTML = `<i class="bi bi-check-circle-fill text-success fs-6"></i> <span><strong>${totalCaptured} Packaging Photos Ready!</strong> (Min 4 requirement met). Tap <strong>'Proceed to Analysis'</strong> below.</span>`;
+                    const btnProceed = document.getElementById('btn-proceed-analysis');
+                    if (btnProceed) {
+                        btnProceed.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                    }
+                } else {
+                    banner.className = "alert alert-warning py-2 px-3 small border-0 rounded-3 mb-3 text-center d-flex align-items-center justify-content-center gap-2 shadow-sm";
+                    banner.innerHTML = `<i class="bi bi-exclamation-triangle-fill text-warning fs-6"></i> <span><strong>${totalCaptured}/4 Minimum Sides Loaded.</strong> Please upload or snap <strong>${4 - totalCaptured} more side(s)</strong>.</span>`;
+                }
             }
 
             fileInput.value = '';
@@ -822,31 +854,36 @@ function capturePhotoFromCamera() {
 
     const dataUrl = canvas.toDataURL('image/jpeg', 0.95);
 
-    canvas.toBlob((blob) => {
-        if (!blob) return;
-        const file = new File([blob], `${appState.activeSide}_side_${Date.now()}.jpg`, { type: 'image/jpeg' });
-        
-        appState.capturedSides[appState.activeSide] = {
-            dataUrl: dataUrl,
-            file: file,
-            timestamp: Date.now()
-        };
+    const capturedSideKey = appState.activeSide;
+    appState.capturedSides[capturedSideKey] = {
+        dataUrl: dataUrl,
+        file: null,
+        timestamp: Date.now()
+    };
 
-        // Flash green box effect
-        const frameBox = document.getElementById('scanner-frame-box');
-        if (frameBox) {
-            frameBox.style.borderColor = '#00c885';
-            frameBox.style.boxShadow = '0 0 25px #00c885, 0 0 0 4000px rgba(11, 25, 44, 0.65)';
-            setTimeout(() => {
-                frameBox.style.boxShadow = '';
-            }, 300);
-        }
+    // Flash green box effect
+    const frameBox = document.getElementById('scanner-frame-box');
+    if (frameBox) {
+        frameBox.style.borderColor = '#00c885';
+        frameBox.style.boxShadow = '0 0 25px #00c885, 0 0 0 4000px rgba(11, 25, 44, 0.65)';
+        setTimeout(() => {
+            frameBox.style.boxShadow = '';
+        }, 300);
+    }
 
-        const capturedSideKey = appState.activeSide;
-        autoAdvanceToNextSide();
-        renderSidesUI();
-        openCapturedSnapPreviewModal(capturedSideKey, dataUrl);
-    }, 'image/jpeg', 0.95);
+    try {
+        canvas.toBlob((blob) => {
+            if (blob && appState.capturedSides[capturedSideKey]) {
+                appState.capturedSides[capturedSideKey].file = blob;
+            }
+        }, 'image/jpeg', 0.95);
+    } catch (e) {
+        console.warn("canvas.toBlob warning:", e);
+    }
+
+    autoAdvanceToNextSide();
+    renderSidesUI();
+    openCapturedSnapPreviewModal(capturedSideKey, dataUrl);
 }
 
 function openCapturedSnapPreviewModal(sideKey, dataUrl) {

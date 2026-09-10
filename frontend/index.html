@@ -71,10 +71,9 @@
                         <button class="btn-scanshield-primary" onclick="triggerSimulatedScan()">
                             <i class="bi bi-camera-fill fs-5"></i> Scan Product <i class="bi bi-chevron-right ms-2"></i>
                         </button>
-                        <label for="label-file-input" class="btn-scanshield-outline m-0 cursor-pointer">
-                            <i class="bi bi-image fs-5"></i> Upload Image <i class="bi bi-chevron-right ms-2"></i>
-                        </label>
-                        <input type="file" id="label-file-input" accept="image/*" class="d-none">
+                        <button type="button" class="btn-scanshield-outline m-0 cursor-pointer" onclick="triggerMultiFileUpload()">
+                            <i class="bi bi-images fs-5"></i> Upload Packaging Photos <i class="bi bi-chevron-right ms-2"></i>
+                        </button>
                     </div>
                 </div>
 
@@ -265,9 +264,9 @@
                         <button class="btn btn-outline-secondary rounded-pill px-3 py-3 fw-bold d-none" id="btn-stop-camera" onclick="stopLiveCamera()">
                             <i class="bi bi-camera-video-off me-1"></i> Stop Camera
                         </button>
-                        <label for="label-file-input" class="btn-scanshield-outline m-0 cursor-pointer py-3 px-4 shadow-sm" id="btn-upload-file-label">
+                        <button type="button" class="btn-scanshield-outline m-0 cursor-pointer py-3 px-4 shadow-sm" id="btn-upload-file-trigger" onclick="triggerMultiFileUpload()">
                             <i class="bi bi-images me-1 fs-5 text-primary"></i> Upload 4 to 6 Photos
-                        </label>
+                        </button>
                         <input type="file" id="label-file-input" multiple accept="image/*" class="d-none">
                     </div>
 
