@@ -770,9 +770,44 @@ function capturePhotoFromCamera() {
             }, 300);
         }
 
+        const capturedSideKey = appState.activeSide;
         autoAdvanceToNextSide();
         renderSidesUI();
+        openCapturedSnapPreviewModal(capturedSideKey, dataUrl);
     }, 'image/jpeg', 0.95);
+}
+
+function openCapturedSnapPreviewModal(sideKey, dataUrl) {
+    const sideObj = PACKAGING_SIDES.find(s => s.key === sideKey) || { label: sideKey };
+    const modalImg = document.getElementById('modal-captured-preview-img');
+    const modalSideName = document.getElementById('preview-side-name');
+
+    const srcToUse = dataUrl || (appState.capturedSides[sideKey] ? appState.capturedSides[sideKey].dataUrl : '');
+
+    if (modalImg) modalImg.src = srcToUse;
+    if (modalSideName) modalSideName.textContent = sideObj.label || sideKey;
+
+    const modalEl = document.getElementById('snapPreviewModal');
+    if (modalEl && typeof bootstrap !== 'undefined') {
+        const bsModal = bootstrap.Modal.getOrCreateInstance(modalEl);
+        bsModal.show();
+    }
+}
+
+function retakeActiveSide() {
+    if (appState.activeSide && appState.capturedSides[appState.activeSide]) {
+        delete appState.capturedSides[appState.activeSide];
+    }
+    renderSidesUI();
+    const modalEl = document.getElementById('snapPreviewModal');
+    if (modalEl && typeof bootstrap !== 'undefined') {
+        const bsModal = bootstrap.Modal.getInstance(modalEl);
+        if (bsModal) bsModal.hide();
+    }
+}
+
+function confirmCapturedPreview() {
+    renderSidesUI();
 }
 
 function stopLiveCamera() {
