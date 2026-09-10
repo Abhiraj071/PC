@@ -96,7 +96,7 @@ class OCRExtractor:
 
                 # Primary Pass: Single-pass image_to_data captures text, layout, and confidence simultaneously
                 try:
-                    data = pytesseract.image_to_data(pil_img, config='--psm 3', output_type=pytesseract.Output.DICT)
+                    data = pytesseract.image_to_data(pil_img, config='--psm 3', output_type=pytesseract.Output.DICT, timeout=12)
                     conf_list = [int(c) for c in data.get('conf', []) if str(c).isdigit() and int(c) > 0]
                     if conf_list:
                         confidence = round(sum(conf_list) / (len(conf_list) * 100.0), 2)
@@ -127,7 +127,7 @@ class OCRExtractor:
                         gray = cv2.cvtColor(np_img, cv2.COLOR_RGB2GRAY)
                         clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
                         enhanced = clahe.apply(gray)
-                        p2_data = pytesseract.image_to_data(enhanced, config='--psm 6', output_type=pytesseract.Output.DICT)
+                        p2_data = pytesseract.image_to_data(enhanced, config='--psm 6', output_type=pytesseract.Output.DICT, timeout=12)
                         
                         p2_lines = {}
                         for i, word in enumerate(p2_data.get('text', [])):

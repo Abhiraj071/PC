@@ -91,7 +91,7 @@ def enhance_image(image: np.ndarray) -> np.ndarray:
         gray = image
     clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
     enhanced_gray = clahe.apply(gray)
-    denoised = cv2.fastNlMeansDenoising(enhanced_gray, None, h=8, templateWindowSize=7, searchWindowSize=21)
+    denoised = cv2.medianBlur(enhanced_gray, 3)
     return denoised
 
 def crop_label(image: np.ndarray) -> np.ndarray:

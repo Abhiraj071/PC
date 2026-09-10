@@ -1152,21 +1152,74 @@ async function startAnalysisPipeline() {
 
     const scanId = appState.currentScan.scan_id;
     showView('analyzing');
-    
-    let progress = 0;
+
+    let progress = 5;
     const progressBar = document.getElementById('analysis-progress');
     const percentText = document.getElementById('analysis-percent');
-    
+    const timeoutBox = document.getElementById('analyzing-timeout-actions');
+    if (timeoutBox) timeoutBox.classList.add('d-none');
+
+    function updateStepUI(activeIdx) {
+        for (let i = 1; i <= 4; i++) {
+            const icon = document.getElementById(`step-icon-${i}`);
+            const badge = document.getElementById(`step-badge-${i}`);
+            if (!icon || !badge) continue;
+
+            if (i < activeIdx) {
+                icon.className = "bi bi-check-circle-fill text-success fs-5";
+                badge.className = "ms-auto badge bg-success-subtle text-success px-3 py-2";
+                badge.textContent = "Done";
+            } else if (i === activeIdx) {
+                icon.className = "bi bi-arrow-repeat text-primary fs-5 spinner-border spinner-border-sm";
+                badge.className = "ms-auto badge bg-primary-subtle text-primary px-3 py-2";
+                badge.textContent = "Processing";
+            } else {
+                icon.className = "bi bi-clock text-muted fs-5";
+                badge.className = "ms-auto badge bg-light text-muted px-3 py-2";
+                badge.textContent = "Pending";
+            }
+        }
+    }
+
+    updateStepUI(1);
+
+    const startTime = Date.now();
     const interval = setInterval(() => {
-        progress += 15;
-        if (progress > 90) progress = 90;
+        const elapsed = (Date.now() - startTime) / 1000;
+
+        if (elapsed < 1.5) {
+            progress = Math.min(25, Math.round(progress + 4));
+            updateStepUI(1);
+        } else if (elapsed < 5.0) {
+            progress = Math.min(60, Math.round(progress + 3));
+            updateStepUI(2);
+        } else if (elapsed < 10.0) {
+            progress = Math.min(85, Math.round(progress + 2));
+            updateStepUI(3);
+        } else {
+            progress = Math.min(94, Math.round(progress + 1));
+            updateStepUI(3);
+            if (timeoutBox) timeoutBox.classList.remove('d-none');
+        }
+
         if (progressBar) progressBar.style.width = `${progress}%`;
         if (percentText) percentText.innerText = `${progress}%`;
-    }, 250);
+    }, 300);
+
+    // Setup abort controller with 35s timeout
+    const abortController = new AbortController();
+    appState.analysisAbortController = abortController;
+    const timeoutId = setTimeout(() => {
+        abortController.abort();
+    }, 35000);
 
     // Execute Backend Tesseract OCR & AI Extraction
-    fetch(`${API_BASE}/api/analysis/${scanId}`, { method: 'POST' })
+    fetch(`${API_BASE}/api/analysis/${scanId}`, {
+        method: 'POST',
+        signal: abortController.signal
+    })
     .then(async res => {
+        clearTimeout(timeoutId);
         const data = await res.json();
         if (!res.ok) {
             throw new Error(data.detail || "No readable text detected on the package label. Please ensure the label is clear, well-lit, and not blurred.");
@@ -1175,6 +1228,7 @@ async function startAnalysisPipeline() {
     })
     .then(extData => {
         clearInterval(interval);
+        updateStepUI(5); // Mark all done
         if (progressBar) progressBar.style.width = `100%`;
         if (percentText) percentText.innerText = `100%`;
 
@@ -1187,16 +1241,29 @@ async function startAnalysisPipeline() {
             if (appState.currentScan && appState.currentScan.scan_id) {
                 triggerRuleEngineExecution();
             }
-        }, 500);
+        }, 400);
     })
     .catch(err => {
         clearInterval(interval);
+        clearTimeout(timeoutId);
         console.error("Analysis pipeline error:", err);
+
+        const errMsg = err.name === 'AbortError'
+            ? 'Analysis timed out. Server free tier took too long. Please tap Retry.'
+            : err.message;
 
         // Keep user on preview view and display error with retry
         showView('preview');
-        updatePreviewUploadStatus('error', `Analysis: ${err.message}`);
+        updatePreviewUploadStatus('error', `Analysis: ${errMsg}`);
     });
+}
+
+function cancelAndRetryAnalysis() {
+    if (appState.analysisAbortController) {
+        appState.analysisAbortController.abort();
+    }
+    showView('preview');
+    updatePreviewUploadStatus('ready');
 }
 
 // Populate Editable Product Form with Real Extracted Data
