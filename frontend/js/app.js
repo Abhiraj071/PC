@@ -581,24 +581,25 @@ function startLiveCamera() {
     if (alignmentAlert) alignmentAlert.classList.add('d-none');
 
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        alert("Live Camera API is not supported on this browser. Please use the Upload Photo File option.");
+        if (statusBadge) {
+            statusBadge.className = 'badge bg-warning text-dark position-absolute bottom-0 start-50 translate-middle-x mb-3 px-3 py-2 border border-warning shadow';
+            statusBadge.innerHTML = '<i class="bi bi-info-circle me-1"></i> Camera API restricted — Click "Upload Photo File" or "Demo Product" below';
+        }
         return;
     }
 
-    statusBadge.innerHTML = '<i class="bi bi-hourglass-split me-1"></i> Requesting camera access...';
+    if (statusBadge) {
+        statusBadge.className = 'badge bg-dark text-warning position-absolute bottom-0 start-50 translate-middle-x mb-3 px-3 py-2 border border-warning shadow';
+        statusBadge.innerHTML = '<i class="bi bi-hourglass-split me-1"></i> Requesting camera access...';
+    }
 
-    navigator.mediaDevices.getUserMedia({
-        video: {
-            facingMode: { ideal: 'environment' },
-            width: { ideal: 1280 },
-            height: { ideal: 720 }
-        }
-    })
-    .then(stream => {
+    const handleStreamSuccess = (stream) => {
         mediaStream = stream;
-        video.srcObject = stream;
-        video.style.setProperty('display', 'block', 'important');
-        video.classList.remove('d-none');
+        if (video) {
+            video.srcObject = stream;
+            video.style.setProperty('display', 'block', 'important');
+            video.classList.remove('d-none');
+        }
         
         if (placeholder) {
             placeholder.style.setProperty('display', 'none', 'important');
@@ -612,11 +613,26 @@ function startLiveCamera() {
         if (btnStop) btnStop.classList.remove('d-none');
 
         startFrameQualityMonitor();
+    };
+
+    navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: 'environment' } }
     })
+    .then(handleStreamSuccess)
     .catch(err => {
-        console.error("Camera access error:", err);
-        statusBadge.className = 'badge bg-danger text-white position-absolute bottom-0 start-50 translate-middle-x mb-3 px-3 py-2 border border-danger shadow';
-        statusBadge.innerHTML = '<i class="bi bi-exclamation-triangle-fill me-1"></i> Camera access denied. Use Upload Photo File below.';
+        console.warn("Environment camera failed, retrying with basic video constraint...", err);
+        navigator.mediaDevices.getUserMedia({ video: true })
+        .then(handleStreamSuccess)
+        .catch(err2 => {
+            console.error("Camera access denied or unequipped:", err2);
+            if (statusBadge) {
+                statusBadge.className = 'badge bg-danger text-white position-absolute bottom-0 start-50 translate-middle-x mb-3 px-3 py-2 border border-danger shadow';
+                statusBadge.innerHTML = '<i class="bi bi-exclamation-triangle-fill me-1"></i> Camera access unavailable — Tap "Upload Photo File" or "Demo Product" below';
+            }
+            if (btnStart) btnStart.classList.remove('d-none');
+            if (btnCapture) btnCapture.classList.add('d-none');
+            if (btnStop) btnStop.classList.add('d-none');
+        });
     });
 }
 
