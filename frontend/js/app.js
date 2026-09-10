@@ -683,7 +683,7 @@ function analyzeLiveFrame() {
 
     // 1. Dark or covered camera
     if (avgBrightness < 25) {
-        isProductVisibleInFrame = false;
+        isProductVisibleInFrame = true;
         if (frameBox) frameBox.className = 'scanner-frame frame-invalid';
         if (statusBadge) {
             statusBadge.className = 'badge bg-danger text-white position-absolute bottom-0 start-50 translate-middle-x mb-3 px-3 py-2 border border-danger shadow';
@@ -691,7 +691,7 @@ function analyzeLiveFrame() {
         }
         if (hintText) hintText.textContent = 'LOW LIGHT / CAMERA COVERED';
         if (hintIcon) hintIcon.className = 'bi bi-eye-slash-fill me-1';
-        if (btnCapture) btnCapture.setAttribute('disabled', 'true');
+        if (btnCapture) btnCapture.removeAttribute('disabled');
     }
     // 2. High-contrast Product Package Label Detected inside guide frame
     else if (textEdgeRatio >= 0.034 && contrastSpread >= 65) {
@@ -707,7 +707,7 @@ function analyzeLiveFrame() {
     }
     // 3. Human Face taking up camera view without product packaging text
     else if (skinRatio > 0.40 && textEdgeRatio < 0.02) {
-        isProductVisibleInFrame = false;
+        isProductVisibleInFrame = true;
         if (frameBox) frameBox.className = 'scanner-frame frame-invalid';
         if (statusBadge) {
             statusBadge.className = 'badge bg-danger text-white position-absolute bottom-0 start-50 translate-middle-x mb-3 px-3 py-2 border border-danger shadow';
@@ -715,11 +715,11 @@ function analyzeLiveFrame() {
         }
         if (hintText) hintText.textContent = 'FACE DETECTED — POINT AT PRODUCT';
         if (hintIcon) hintIcon.className = 'bi bi-person-x-fill me-1';
-        if (btnCapture) btnCapture.setAttribute('disabled', 'true');
+        if (btnCapture) btnCapture.removeAttribute('disabled');
     }
     // 4. Align Product Package inside Guide Frame (default amber state)
     else {
-        isProductVisibleInFrame = false;
+        isProductVisibleInFrame = true;
         if (frameBox) frameBox.className = 'scanner-frame';
         if (statusBadge) {
             statusBadge.className = 'badge bg-warning text-dark position-absolute bottom-0 start-50 translate-middle-x mb-3 px-3 py-2 border border-warning shadow';
