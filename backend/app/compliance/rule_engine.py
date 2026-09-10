@@ -11,79 +11,137 @@ class RuleLoader:
 
 class RuleSelector:
     def select_rules_for_product(self, product_data: dict, all_rules: List[dict]) -> List[dict]:
-        category = product_data.get("category", "").lower()
         selected = []
         for r in all_rules:
-            # All 10 packaged commodity rules apply to consumer commodities
             selected.append(r)
         return selected
 
 class MandatoryFieldChecker:
     def check(self, field_name: str, value: Any) -> str:
         if value is None or str(value).strip() == "" or str(value).strip().lower() in ["null", "none", "not detected"]:
-            return "NOT_DETECTED"
+            return "FAIL"
         return "PASS"
 
 class MRPValidator:
     def validate(self, mrp: str) -> dict:
-        if not mrp or mrp == "NOT_DETECTED":
-            return {"status": "NOT_DETECTED", "details": "MRP declaration not found on package label"}
+        if not mrp or str(mrp).strip() == "" or str(mrp).strip().lower() in ["null", "none", "not detected"]:
+            return {
+                "status": "FAIL",
+                "details": "Mandatory MRP declaration missing on package (Violation of Rule 6(1)(e))"
+            }
         
         mrp_str = str(mrp).lower()
         has_taxes = "tax" in mrp_str or "inclusive" in mrp_str or "incl" in mrp_str
-        has_currency = any(sym in str(mrp) for sym in ["₹", "Rs", "INR"])
-        has_decimal = bool(re.search(r'\d+\.\d{2}', str(mrp))) or bool(re.search(r'\d+', str(mrp)))
+        has_currency = any(sym in str(mrp) for sym in ["₹", "Rs", "INR", "rs"])
+        has_number = bool(re.search(r'\d+(?:\.\d{1,2})?', str(mrp)))
 
-        if has_taxes and has_currency and has_decimal:
-            return {"status": "PASS", "details": "MRP declared correctly as per Rule 6(1)(e) with currency symbol and inclusive of all taxes"}
-        elif has_currency and has_decimal:
-            return {"status": "NEEDS_REVIEW", "details": "MRP declared with price, but tax declaration text may be incomplete"}
+        if has_currency and has_number and has_taxes:
+            return {
+                "status": "PASS",
+                "details": f"MRP declared correctly as per Rule 6(1)(e) with currency symbol and inclusive of all taxes ({mrp})"
+            }
+        elif has_currency and has_number:
+            return {
+                "status": "NEEDS_REVIEW",
+                "details": f"MRP price detected ({mrp}), but 'inclusive of all taxes' statement is missing or unclear (Rule 6(1)(e))"
+            }
         else:
-            return {"status": "FAIL", "details": "MRP declaration does not comply with mandatory Rule 6 format"}
+            return {
+                "status": "FAIL",
+                "details": f"MRP declaration '{mrp}' does not comply with mandatory Rule 6(1)(e) format"
+            }
 
 class QuantityValidator:
     def validate(self, qty: str) -> dict:
-        if not qty or qty == "NOT_DETECTED":
-            return {"status": "NOT_DETECTED", "details": "Net quantity declaration not detected"}
+        if not qty or str(qty).strip() == "" or str(qty).strip().lower() in ["null", "none", "not detected"]:
+            return {
+                "status": "FAIL",
+                "details": "Mandatory Net Quantity declaration missing (Violation of Rule 6(1)(c))"
+            }
         
         # Check standard units: g, kg, ml, l, L, count, N
-        match = re.search(r'\b\d+(?:\.\d+)?\s*(g|kg|ml|l|L|m|cm|count|N|n)\b', str(qty))
+        match = re.search(r'\b\d+(?:\.\d+)?\s*(g|kg|gm|gms|ml|mL|l|L|ltr|count|N|n|pieces?|pcs)\b', str(qty), re.IGNORECASE)
         if match:
-            return {"status": "PASS", "details": f"Net quantity ({qty}) declared in standard metric unit"}
-        return {"status": "NEEDS_REVIEW", "details": f"Net quantity ({qty}) requires unit verification"}
+            return {
+                "status": "PASS",
+                "details": f"Net quantity ({qty}) declared in standard metric unit as per Rule 6(1)(c)"
+            }
+        return {
+            "status": "NEEDS_REVIEW",
+            "details": f"Net quantity ({qty}) requires unit verification under Legal Metrology standards"
+        }
 
 class DateValidator:
     def validate(self, mfg_date: str, best_before: str) -> dict:
-        if not mfg_date or mfg_date == "NOT_DETECTED":
-            return {"status": "NOT_DETECTED", "details": "Month and year of manufacture/packing not detected"}
-        return {"status": "PASS", "details": f"Manufacture date ({mfg_date}) and Best Before ({best_before or 'N/A'}) declared"}
+        if not mfg_date or str(mfg_date).strip() == "" or str(mfg_date).strip().lower() in ["null", "none", "not detected"]:
+            return {
+                "status": "FAIL",
+                "details": "Mandatory month and year of manufacture/packing not detected (Violation of Rule 6(1)(d))"
+            }
+        
+        date_clean = mfg_date.replace('\n', ' ').strip()
+        bb_clean = (best_before or '').replace('\n', ' ').strip()
+        bb_part = f" and Best Before ({bb_clean})" if bb_clean else ""
+        return {
+            "status": "PASS",
+            "details": f"Manufacture date ({date_clean}){bb_part} declared as per Rule 6(1)(d)"
+        }
 
 class ManufacturerValidator:
     def validate(self, mfg: str) -> dict:
-        if not mfg or mfg == "NOT_DETECTED":
-            return {"status": "NOT_DETECTED", "details": "Manufacturer / Packer name and address not detected"}
-        if len(str(mfg).strip()) > 10:
-            return {"status": "PASS", "details": f"Manufacturer details declared: {mfg[:60]}..."}
-        return {"status": "NEEDS_REVIEW", "details": "Manufacturer details detected but address appears incomplete"}
+        if not mfg or str(mfg).strip() == "" or str(mfg).strip().lower() in ["null", "none", "not detected"]:
+            return {
+                "status": "FAIL",
+                "details": "Mandatory Manufacturer / Packer name and address missing (Violation of Rule 6(1)(a))"
+            }
+        mfg_clean = mfg.replace('\n', ' ').strip()
+        if len(mfg_clean) > 12:
+            return {
+                "status": "PASS",
+                "details": f"Manufacturer details declared: {mfg_clean[:60]}..."
+            }
+        return {
+            "status": "NEEDS_REVIEW",
+            "details": "Manufacturer details detected but address appears incomplete under Rule 6(1)(a)"
+        }
 
 class ConsumerCareValidator:
     def validate(self, cc: str) -> dict:
-        if not cc or cc == "NOT_DETECTED":
-            return {"status": "NOT_DETECTED", "details": "Consumer care details (phone/email) not detected"}
+        if not cc or str(cc).strip() == "" or str(cc).strip().lower() in ["null", "none", "not detected"]:
+            return {
+                "status": "FAIL",
+                "details": "Mandatory Consumer Care contact details not detected (Violation of Rule 6(1)(f))"
+            }
         
         has_phone = bool(re.search(r'\d{8,12}', str(cc)))
         has_email = "@" in str(cc)
         if has_phone or has_email:
-            return {"status": "PASS", "details": f"Consumer care contact declared ({cc})"}
-        return {"status": "NEEDS_REVIEW", "details": "Consumer care details present but contact number or email format needs verification"}
+            cc_clean = cc.replace('\n', ' ').strip()
+            return {
+                "status": "PASS",
+                "details": f"Consumer care contact declared ({cc_clean})"
+            }
+        return {
+            "status": "NEEDS_REVIEW",
+            "details": "Consumer care details present but contact number or email format needs verification"
+        }
 
 class ReadabilityChecker:
     def check(self, confidence: float) -> dict:
-        if confidence >= 0.85:
-            return {"status": "PASS", "details": "Text information is clear and highly readable"}
-        elif confidence >= 0.65:
-            return {"status": "NEEDS_REVIEW", "details": "Text size appears smaller or image lighting may impair readability"}
-        return {"status": "FAIL", "details": "Low readability detected on principal display panel"}
+        if confidence >= 0.70:
+            return {
+                "status": "PASS",
+                "details": "Text declarations are clear and highly readable"
+            }
+        elif confidence >= 0.40:
+            return {
+                "status": "NEEDS_REVIEW",
+                "details": "Moderate text clarity; verify principal display panel font size against Rule 7"
+            }
+        return {
+            "status": "FAIL",
+            "details": "Low text readability on label; declarations may violate minimum font size rules"
+        }
 
 class ViolationDetector:
     def detect_violations(self, checks: List[dict]) -> List[dict]:
@@ -109,7 +167,7 @@ class ComplianceScorer:
     def score(self, checks: List[dict]) -> dict:
         passed = sum(1 for c in checks if c["status"] == "PASS")
         fails = sum(1 for c in checks if c["status"] == "FAIL")
-        reviews = sum(1 for c in checks if c["status"] in ["NEEDS_REVIEW", "NOT_DETECTED"])
+        reviews = sum(1 for c in checks if c["status"] == "NEEDS_REVIEW")
 
         if fails > 0:
             overall_status = "NON_COMPLIANT"
@@ -139,84 +197,101 @@ class ComplianceEngine:
         self.scorer = ComplianceScorer()
 
     def evaluate_compliance(self, structured_data: dict, ocr_confidence: float = 0.95) -> dict:
-        all_rules = self.loader.load_rules()
-        selected_rules = self.selector.select_rules_for_product(structured_data, all_rules)
-        
         checks = []
 
-        # 1. Manufacturer check (LM-NAME-001)
-        mfg_res = self.mfg_validator.validate(structured_data.get("manufacturer"))
+        # 1. Manufacturer check (LM-NAME-001 / Rule 6(1)(a))
+        mfg_val = structured_data.get("manufacturer")
+        mfg_res = self.mfg_validator.validate(mfg_val)
         checks.append({
             "rule_code": "LM-NAME-001",
             "check_name": "Manufacturer / Packer / Importer",
             "status": mfg_res["status"],
-            "confidence": structured_data.get("confidences", {}).get("manufacturer", 0.95),
+            "confidence": structured_data.get("confidences", {}).get("manufacturer", 0.95 if mfg_val else 0.0),
             "details": mfg_res["details"]
         })
 
-        # 2. Generic name check (LM-GENERIC-002)
-        prod_name = structured_data.get("product_name")
-        generic_status = "PASS" if prod_name else "NOT_DETECTED"
+        # 2. Generic commodity name check (LM-GENERIC-002 / Rule 6(1)(b))
+        prod_name = (structured_data.get("product_name") or "").strip()
+        if prod_name and len(prod_name) > 2:
+            generic_status = "PASS"
+            generic_details = f"Product identified as '{prod_name}'"
+            generic_conf = 0.95
+        else:
+            generic_status = "FAIL"
+            generic_details = "Mandatory generic name of commodity missing (Violation of Rule 6(1)(b))"
+            generic_conf = 0.0
         checks.append({
             "rule_code": "LM-GENERIC-002",
             "check_name": "Generic Name of Commodity",
             "status": generic_status,
-            "confidence": 0.95,
-            "details": f"Product identified as '{prod_name}'" if prod_name else "Generic product name missing"
+            "confidence": generic_conf,
+            "details": generic_details
         })
 
-        # 3. Net quantity check (LM-QTY-003)
-        qty_res = self.qty_validator.validate(structured_data.get("net_quantity"))
+        # 3. Net quantity check (LM-QTY-003 / Rule 6(1)(c))
+        qty_val = structured_data.get("net_quantity")
+        qty_res = self.qty_validator.validate(qty_val)
         checks.append({
             "rule_code": "LM-QTY-003",
             "check_name": "Net Quantity",
             "status": qty_res["status"],
-            "confidence": structured_data.get("confidences", {}).get("net_quantity", 0.95),
+            "confidence": structured_data.get("confidences", {}).get("net_quantity", 0.95 if qty_val else 0.0),
             "details": qty_res["details"]
         })
 
-        # 4. MRP check (LM-MRP-004)
-        mrp_res = self.mrp_validator.validate(structured_data.get("mrp"))
+        # 4. MRP check (LM-MRP-004 / Rule 6(1)(e))
+        mrp_val = structured_data.get("mrp")
+        mrp_res = self.mrp_validator.validate(mrp_val)
         checks.append({
             "rule_code": "LM-MRP-004",
             "check_name": "MRP (incl. of all taxes)",
             "status": mrp_res["status"],
-            "confidence": structured_data.get("confidences", {}).get("mrp", 0.95),
+            "confidence": structured_data.get("confidences", {}).get("mrp", 0.95 if mrp_val else 0.0),
             "details": mrp_res["details"]
         })
 
-        # 5. Manufacture date check (LM-DATE-005)
-        date_res = self.date_validator.validate(structured_data.get("manufacture_date"), structured_data.get("best_before"))
+        # 5. Manufacture date check (LM-DATE-005 / Rule 6(1)(d))
+        mfg_date_val = structured_data.get("manufacture_date")
+        exp_date_val = structured_data.get("best_before")
+        date_res = self.date_validator.validate(mfg_date_val, exp_date_val)
         checks.append({
             "rule_code": "LM-DATE-005",
             "check_name": "Manufacture Date",
             "status": date_res["status"],
-            "confidence": structured_data.get("confidences", {}).get("manufacture_date", 0.95),
+            "confidence": structured_data.get("confidences", {}).get("manufacture_date", 0.95 if mfg_date_val else 0.0),
             "details": date_res["details"]
         })
 
         # 6. Best Before / Expiry Date (LM-EXP-008)
-        exp_val = structured_data.get("best_before")
-        exp_status = "PASS" if exp_val and exp_val != "NOT_DETECTED" else "NEEDS_REVIEW"
+        exp_val = (exp_date_val or "").strip()
+        if exp_val and len(exp_val) > 2:
+            exp_status = "PASS"
+            exp_details = f"Expiry / Best Before declared as '{exp_val.replace(chr(10), ' ')}'"
+            exp_conf = structured_data.get("confidences", {}).get("best_before", 0.95)
+        else:
+            exp_status = "NEEDS_REVIEW"
+            exp_details = "Best Before / Expiry date not detected on label"
+            exp_conf = 0.0
         checks.append({
             "rule_code": "LM-EXP-008",
             "check_name": "Best Before / Use By",
             "status": exp_status,
-            "confidence": structured_data.get("confidences", {}).get("best_before", 0.95),
-            "details": f"Expiry date declared as '{exp_val}'" if exp_status == "PASS" else "Best Before date needs label verification"
+            "confidence": exp_conf,
+            "details": exp_details
         })
 
-        # 7. Consumer Care details (LM-CC-006)
-        cc_res = self.cc_validator.validate(structured_data.get("consumer_care"))
+        # 7. Consumer Care details (LM-CC-006 / Rule 6(1)(f))
+        cc_val = structured_data.get("consumer_care")
+        cc_res = self.cc_validator.validate(cc_val)
         checks.append({
             "rule_code": "LM-CC-006",
             "check_name": "Consumer Care Details",
             "status": cc_res["status"],
-            "confidence": structured_data.get("confidences", {}).get("consumer_care", 0.95),
+            "confidence": structured_data.get("confidences", {}).get("consumer_care", 0.95 if cc_val else 0.0),
             "details": cc_res["details"]
         })
 
-        # 8. Readability check (LM-FONT-010)
+        # 8. Readability check (LM-FONT-010 / Rule 7)
         read_res = self.readability_checker.check(ocr_confidence)
         checks.append({
             "rule_code": "LM-FONT-010",
@@ -232,29 +307,34 @@ class ComplianceEngine:
         highlights = []
         if scoring["status"] == "COMPLIANT":
             highlights = [
-                "All mandatory declarations found",
-                "Label format is as per Legal Metrology rules",
-                "Text information is clear and readable",
-                "No critical issues detected"
+                "All mandatory Rule 6 declarations found on package label",
+                "Net quantity, MRP (incl. of taxes), and manufacturer verified",
+                "Text information is clear and complies with Rule 7 readability",
+                "No Legal Metrology violations detected"
             ]
         elif scoring["status"] == "NEEDS_REVIEW":
             highlights = [
-                f"{scoring['issues_found']} declaration(s) need inspector review",
-                "Some text size or field formats need label verification",
-                "Product overall compliant with basic declarations"
+                f"{scoring['issues_found']} declaration(s) require inspector or consumer verification",
+                "Some mandatory fields or unit formats need label confirmation",
+                "Product overall partially compliant with basic declarations"
             ]
         else:
             highlights = [
-                "Critical Legal Metrology violation detected",
-                "Mandatory declaration missing or non-compliant",
-                "Consumer reporting recommended"
+                f"{scoring['issues_found']} Legal Metrology violation(s) detected!",
+                "Mandatory declaration(s) missing or non-compliant under Rule 6",
+                "Consumer concern report or official regulatory inspection recommended"
             ]
+
+        # Calculate overall confidence
+        valid_confs = [c["confidence"] for c in checks if c["confidence"] > 0]
+        overall_conf = round(sum(valid_confs) / len(valid_confs), 2) if valid_confs else round(ocr_confidence, 2)
 
         return {
             "status": scoring["status"],
             "checks_passed": scoring["checks_passed"],
             "issues_found": scoring["issues_found"],
-            "overall_confidence": round(ocr_confidence, 2),
+            "total_checks": scoring["total_checks"],
+            "overall_confidence": overall_conf,
             "highlights": highlights,
             "checks": checks,
             "violations": violations

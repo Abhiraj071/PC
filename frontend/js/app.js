@@ -964,6 +964,25 @@ function retakeFromPreview(sideKey) {
     showView('scan');
 }
 
+function dataURLtoBlob(dataurl) {
+    if (!dataurl || typeof dataurl !== 'string') return null;
+    try {
+        const arr = dataurl.split(',');
+        const mimeMatch = arr[0].match(/:(.*?);/);
+        const mime = mimeMatch ? mimeMatch[1] : 'image/jpeg';
+        const bstr = atob(arr[1]);
+        let n = bstr.length;
+        const u8arr = new Uint8Array(n);
+        while (n--) {
+            u8arr[n] = bstr.charCodeAt(n);
+        }
+        return new Blob([u8arr], { type: mime });
+    } catch (e) {
+        console.error("dataURLtoBlob error:", e);
+        return null;
+    }
+}
+
 function submitMultiSideScan() {
     let count = 0;
     PACKAGING_SIDES.forEach(s => {
@@ -978,7 +997,6 @@ function submitMultiSideScan() {
     stopLiveCamera();
 
     const frontData = appState.capturedSides.front || appState.capturedSides[Object.keys(appState.capturedSides).find(k => appState.capturedSides[k])];
-    const fileToUpload = frontData ? frontData.file : null;
     appState.capturedImage = frontData ? frontData.dataUrl : null;
 
     // Set hidden legacy preview img
@@ -989,45 +1007,52 @@ function submitMultiSideScan() {
         if (preview2) preview2.src = appState.capturedImage;
     }
 
-    // Render the 6-image preview grid
+    // Render the 6-image preview carousel
     renderPreviewGrid();
 
-    if (fileToUpload) {
-        uploadScanFile(fileToUpload);
-    } else {
-        showView('preview');
-    }
+    // Upload all captured sides to backend for full packaging OCR
+    uploadAllCapturedSides();
 }
 
-function uploadScanFile(file) {
+function uploadAllCapturedSides() {
     const formData = new FormData();
-    formData.append('file', file);
+    let primaryFile = null;
+    let fileCount = 0;
 
-    // Show preview immediately using the already-set dataUrl, then navigate
+    PACKAGING_SIDES.forEach(s => {
+        const sideData = appState.capturedSides[s.key];
+        if (sideData && sideData.dataUrl) {
+            const blob = sideData.file || dataURLtoBlob(sideData.dataUrl);
+            if (blob) {
+                formData.append('files', blob, `${s.key}.jpg`);
+                formData.append('sides', s.key);
+                if (!primaryFile) {
+                    primaryFile = blob;
+                }
+                fileCount++;
+            }
+        }
+    });
+
+    if (primaryFile) {
+        formData.append('file', primaryFile, 'primary_label.jpg');
+    }
+
     showView('preview');
 
-    fetch(`${API_BASE}/api/scans`, {
-        method: 'POST',
-        body: formData
-    })
-    .then(res => res.json())
-    .then(data => {
-        appState.currentScan = data;
-        // Keep the captured dataUrl as the visible preview (reliable on mobile).
-        // Store the server path for analysis but don't overwrite the img src
-        // unless the captured image is missing.
-        if (!appState.capturedImage && data.original_image_path) {
-            const imgUrl = `${API_BASE}${data.original_image_path}`;
-            const preview1 = document.getElementById('preview-img-target');
-            const preview2 = document.getElementById('product-label-preview-img');
-            if (preview1) preview1.src = imgUrl;
-            if (preview2) preview2.src = imgUrl;
-        }
-    })
-    .catch(err => {
-        console.error("Scan upload error:", err);
-        // Already on preview view — dataUrl already set, nothing more needed
-    });
+    if (fileCount > 0) {
+        fetch(`${API_BASE}/api/scans`, {
+            method: 'POST',
+            body: formData
+        })
+        .then(res => res.json())
+        .then(data => {
+            appState.currentScan = data;
+        })
+        .catch(err => {
+            console.error("Scan upload error:", err);
+        });
+    }
 }
 
 // Analysis Pipeline Execution on Real Uploaded File
@@ -1125,30 +1150,26 @@ function triggerRuleEngineExecution() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(verifiedData)
     })
-    .then(res => res.json())
+    .then(async res => {
+        const data = await res.json();
+        if (!res.ok) {
+            throw new Error(data.detail || "Compliance audit failed");
+        }
+        return data;
+    })
     .then(compData => {
         appState.complianceData = compData;
         renderComplianceResults();
     })
     .catch(err => {
         console.error("Compliance error:", err);
-        renderComplianceResults();
+        alert(`Compliance check error: ${err.message}`);
     });
 }
 
 function renderComplianceResults() {
-    const comp = appState.complianceData || {
-        status: "COMPLIANT",
-        checks_passed: 6,
-        issues_found: 0,
-        overall_confidence: 0.98,
-        highlights: [
-            "All mandatory declarations found",
-            "Label format is as per Legal Metrology rules",
-            "Text information is clear and readable",
-            "No critical issues detected"
-        ]
-    };
+    const comp = appState.complianceData;
+    if (!comp) return;
 
     const heroCard = document.getElementById('compliance-hero-card');
     const heroTitle = document.getElementById('compliance-hero-title');
@@ -1158,28 +1179,42 @@ function renderComplianceResults() {
         heroCard.className = "card-scanshield text-center p-4 mb-3 badge-compliant d-flex flex-column justify-content-center";
         heroTitle.innerText = "COMPLIANT";
         heroTitle.className = "fw-bold text-success mb-2 fs-1";
-        heroDesc.innerText = "This product complies with Legal Metrology rules.";
+        heroDesc.innerText = "This product complies with all mandatory Legal Metrology declarations.";
     } else if (comp.status === "NEEDS_REVIEW") {
         heroCard.className = "card-scanshield text-center p-4 mb-3 badge-warning d-flex flex-column justify-content-center";
         heroTitle.innerText = "NEEDS REVIEW";
         heroTitle.className = "fw-bold text-warning mb-2 fs-1";
-        heroDesc.innerText = "Some declarations require inspector verification.";
+        heroDesc.innerText = "Some declarations require packaging label confirmation.";
     } else {
         heroCard.className = "card-scanshield text-center p-4 mb-3 badge-danger d-flex flex-column justify-content-center";
         heroTitle.innerText = "NON-COMPLIANT";
         heroTitle.className = "fw-bold text-danger mb-2 fs-1";
-        heroDesc.innerText = "Critical Legal Metrology violation detected.";
+        heroDesc.innerText = "Mandatory Legal Metrology Act 2011 declarations missing or non-compliant.";
     }
 
-    document.getElementById('stat-checks-passed').innerText = comp.checks_passed;
-    document.getElementById('stat-issues-found').innerText = comp.issues_found;
-    document.getElementById('stat-confidence').innerText = `${Math.round(comp.overall_confidence * 100)}%`;
+    const passedEl = document.getElementById('stat-checks-passed');
+    const issuesEl = document.getElementById('stat-issues-found');
+    const confEl = document.getElementById('stat-confidence');
+    if (passedEl) passedEl.innerText = comp.checks_passed ?? 0;
+    if (issuesEl) issuesEl.innerText = comp.issues_found ?? 0;
+    if (confEl) confEl.innerText = `${Math.round((comp.overall_confidence || 0) * 100)}%`;
 
     const highlightsList = document.getElementById('compliance-highlights');
-    if (highlightsList) {
+    if (highlightsList && comp.highlights) {
+        const iconClass = comp.status === 'COMPLIANT' 
+            ? 'bi bi-check-circle-fill text-success fs-5 me-3'
+            : (comp.status === 'NON_COMPLIANT' ? 'bi bi-x-circle-fill text-danger fs-5 me-3' : 'bi bi-exclamation-circle-fill text-warning fs-5 me-3');
+
         highlightsList.innerHTML = comp.highlights.map(h => 
-            `<li class="mb-3 d-flex align-items-center"><i class="bi bi-check-circle-fill text-success fs-5 me-3"></i><span class="fw-bold">${h}</span></li>`
+            `<li class="mb-3 d-flex align-items-center"><i class="${iconClass}"></i><span class="fw-bold">${h}</span></li>`
         ).join('');
+    }
+
+    // Set target product name in consumer report input
+    const prodNameInput = document.getElementById('input-product-name');
+    const reportTargetInput = document.getElementById('report-target-prod');
+    if (reportTargetInput && prodNameInput) {
+        reportTargetInput.value = prodNameInput.value || "Scanned Packaged Commodity";
     }
 
     renderDeclarationAnalysis();
@@ -1188,33 +1223,36 @@ function renderComplianceResults() {
 
 function renderDeclarationAnalysis() {
     const comp = appState.complianceData;
-    const checks = (comp && comp.checks) ? comp.checks : [
-        { rule_code: "LM-NAME-001", check_name: "Manufacturer / Packer / Importer", status: "PASS", confidence: 0.98, details: "Declared correctly" },
-        { rule_code: "LM-QTY-003", check_name: "Net Quantity", status: "PASS", confidence: 0.99, details: "Declared in standard metric unit" },
-        { rule_code: "LM-MRP-004", check_name: "MRP (incl. of all taxes)", status: "PASS", confidence: 0.99, details: "MRP declared with currency symbol and inclusive of taxes" },
-        { rule_code: "LM-DATE-005", check_name: "Manufacture Date", status: "PASS", confidence: 0.96, details: "Date declared correctly" },
-        { rule_code: "LM-EXP-008", check_name: "Best Before / Use By", status: "PASS", confidence: 0.97, details: "Expiry date declared" },
-        { rule_code: "LM-CC-006", check_name: "Consumer Care Details", status: "PASS", confidence: 0.95, details: "Toll-free number and email present" }
-    ];
+    const checks = (comp && comp.checks) ? comp.checks : [];
 
     const container = document.getElementById('declaration-checks-list');
     if (container) {
-        container.innerHTML = checks.map(c => `
-            <div class="col-md-6">
-                <div class="card-scanshield p-3 h-100 d-flex justify-content-between align-items-center">
-                    <div>
-                        <span class="badge bg-light text-primary border mb-1">${c.rule_code}</span>
-                        <h6 class="fw-bold mb-1">${c.check_name}</h6>
-                        <p class="small text-muted mb-0">${c.details || 'Verified'}</p>
-                    </div>
-                    <div>
-                        <span class="badge ${c.status === 'PASS' ? 'bg-success' : 'bg-warning'} text-white rounded-pill px-3 py-2 fs-6">
-                            ${c.status}
-                        </span>
+        if (checks.length === 0) {
+            container.innerHTML = '<div class="col-12 text-center text-muted py-4">No declaration checks available.</div>';
+            return;
+        }
+
+        container.innerHTML = checks.map(c => {
+            const badgeClass = c.status === 'PASS' 
+                ? 'bg-success text-white' 
+                : (c.status === 'FAIL' ? 'bg-danger text-white' : 'bg-warning text-dark');
+            return `
+                <div class="col-md-6">
+                    <div class="card-scanshield p-3 h-100 d-flex justify-content-between align-items-center">
+                        <div class="pe-2">
+                            <span class="badge bg-light text-primary border mb-1">${c.rule_code}</span>
+                            <h6 class="fw-bold mb-1">${c.check_name}</h6>
+                            <p class="small text-muted mb-0">${c.details || 'Verified'}</p>
+                        </div>
+                        <div>
+                            <span class="badge ${badgeClass} rounded-pill px-3 py-2 fs-6">
+                                ${c.status}
+                            </span>
+                        </div>
                     </div>
                 </div>
-            </div>
-        `).join('');
+            `;
+        }).join('');
     }
 }
 

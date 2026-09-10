@@ -1,7 +1,7 @@
 import os
 import uuid
 import shutil
-from typing import Optional
+from typing import Optional, List
 from fastapi import APIRouter, Depends, File, UploadFile, HTTPException, Form
 from sqlalchemy.orm import Session
 from app.config import settings
@@ -15,6 +15,8 @@ router = APIRouter(prefix="/api/scans", tags=["Scans"])
 @router.post("")
 def upload_scan(
     file: Optional[UploadFile] = File(None),
+    files: Optional[List[UploadFile]] = File(None),
+    sides: Optional[List[str]] = Form(None),
     barcode: Optional[str] = Form(None),
     db: Session = Depends(get_db),
     current_user: Optional[User] = Depends(get_current_user)
@@ -23,32 +25,48 @@ def upload_scan(
     filename = f"{scan_id}_label.jpg"
     original_path = os.path.join(settings.UPLOAD_DIR, filename)
 
-    if file:
-        with open(original_path, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
-    else:
-        # Save placeholder or copy reference image if file upload is missing in mock test
-        ref_image = r"c:\Users\Hi-Rich\Desktop\ScanShield\reference Image\2.png"
-        if os.path.exists(ref_image):
-            shutil.copy(ref_image, original_path)
-        else:
-            # Create a blank 400x400 image
-            import cv2
-            import numpy as np
-            blank = np.zeros((400, 400, 3), dtype=np.uint8)
-            cv2.imwrite(original_path, blank)
+    upload_list = []
+    if files:
+        upload_list.extend(files)
+    if file and file not in upload_list:
+        upload_list.insert(0, file)
 
-    # Preprocess image
+    saved_files = []
+    if upload_list:
+        for idx, up_file in enumerate(upload_list):
+            side_tag = "front"
+            if sides and idx < len(sides):
+                side_tag = sides[idx]
+            elif idx > 0:
+                side_tag = f"side_{idx}"
+            
+            side_filename = f"{scan_id}_{side_tag}.jpg"
+            side_path = os.path.join(settings.UPLOAD_DIR, side_filename)
+            with open(side_path, "wb") as buffer:
+                shutil.copyfileobj(up_file.file, buffer)
+            saved_files.append(side_path)
+
+        # Primary label file is the first side image
+        shutil.copyfile(saved_files[0], original_path)
+    else:
+        # Create a blank 400x400 image placeholder if no file attached
+        import cv2
+        import numpy as np
+        blank = np.zeros((400, 400, 3), dtype=np.uint8)
+        cv2.imwrite(original_path, blank)
+        saved_files.append(original_path)
+
+    # Preprocess primary image
     preprocessed_filename = f"{scan_id}_preprocessed.jpg"
     preprocessed_path = preprocess_image(original_path, preprocessed_filename)
 
     scan = Scan(
         id=scan_id,
         user_id=current_user.id if current_user else None,
-        product_id="prd_lays_classic_01", # Default demo link
+        product_id=None,
         original_image_path=original_path,
         preprocessed_image_path=preprocessed_path,
-        barcode_data=barcode or "8901499007567",
+        barcode_data=barcode,
         status="UPLOADED"
     )
     db.add(scan)
@@ -61,6 +79,7 @@ def upload_scan(
         "original_image_path": f"/storage/uploads/{filename}",
         "preprocessed_image_path": f"/storage/preprocessed/{preprocessed_filename}",
         "barcode_data": scan.barcode_data,
+        "side_count": len(saved_files),
         "created_at": scan.created_at
     }
 

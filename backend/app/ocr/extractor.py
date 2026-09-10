@@ -5,9 +5,19 @@ from PIL import Image
 from app.config import settings
 from app.image_processing.preprocessor import check_image_quality
 
-# Configure Tesseract cmd path if specified in config
-if hasattr(settings, "TESSERACT_CMD") and os.path.exists(settings.TESSERACT_CMD):
-    pytesseract.pytesseract.tesseract_cmd = settings.TESSERACT_CMD
+# Configure Tesseract cmd path from settings or common Windows/Linux locations
+TESSERACT_CANDIDATES = [
+    getattr(settings, "TESSERACT_CMD", ""),
+    r"C:\Program Files\Tesseract-OCR\tesseract.exe",
+    r"C:\Program Files (x86)\Tesseract-OCR\tesseract.exe",
+    r"C:\Users\Hi-Rich\AppData\Local\Programs\Tesseract-OCR\tesseract.exe",
+    "/usr/bin/tesseract",
+    "/usr/local/bin/tesseract"
+]
+for candidate in TESSERACT_CANDIDATES:
+    if candidate and os.path.exists(candidate):
+        pytesseract.pytesseract.tesseract_cmd = candidate
+        break
 
 class TextCleaner:
     @staticmethod
@@ -34,14 +44,14 @@ class ImageQualityChecker:
         return check_image_quality(image_path)
 
 PACKAGING_KEYWORDS = [
-    "mrp", "net", "wt", "qty", "mfg", "exp", "batch", "date", "fssai", 
-    "rs", "₹", "g", "kg", "ml", "l", "consumer", "pkd", "packed", 
-    "manufactured", "marketed", "ingredients", "nutritional", "best before", "lic",
-    "lays", "chips", "pepsico", "gram", "liter", "lic", "price"
+    "mrp", "net", "wt", "weight", "qty", "quantity", "mfg", "exp", "batch", "date", 
+    "fssai", "rs", "₹", "inr", "g", "kg", "ml", "l", "consumer", "care", "pkd", 
+    "packed", "manufactured", "marketed", "ingredients", "nutritional", "best before", 
+    "use by", "lic", "license", "licence", "origin", "india", "pvt", "ltd", "price"
 ]
 
 def is_packaging_text(text: str) -> bool:
-    if not text or len(text.strip()) < 8:
+    if not text or len(text.strip()) < 5:
         return False
     text_lower = text.lower()
     matches = sum(1 for kw in PACKAGING_KEYWORDS if kw in text_lower)
@@ -60,37 +70,33 @@ class OCRExtractor:
         confidence = 0.0
         is_tesseract_used = False
 
-        # Try pytesseract first if installed
-        try:
-            img = Image.open(image_path)
-            extracted = pytesseract.image_to_string(img)
-            if extracted and len(extracted.strip()) > 5:
-                raw_text = extracted
-                is_tesseract_used = True
-                data = pytesseract.image_to_data(img, output_type=pytesseract.Output.DICT)
-                conf_list = [int(c) for c in data.get('conf', []) if str(c).isdigit() and int(c) > 0]
-                if conf_list:
-                    confidence = round(sum(conf_list) / (len(conf_list) * 100.0), 2)
-                else:
-                    confidence = 0.85
-        except Exception:
-            pass
+        if os.path.exists(image_path):
+            try:
+                img = Image.open(image_path)
+                extracted = pytesseract.image_to_string(img)
+                if extracted and len(extracted.strip()) > 0:
+                    raw_text = extracted
+                    is_tesseract_used = True
+                    try:
+                        data = pytesseract.image_to_data(img, output_type=pytesseract.Output.DICT)
+                        conf_list = [int(c) for c in data.get('conf', []) if str(c).isdigit() and int(c) > 0]
+                        if conf_list:
+                            confidence = round(sum(conf_list) / (len(conf_list) * 100.0), 2)
+                        else:
+                            confidence = 0.85
+                    except Exception:
+                        confidence = 0.80
+            except Exception as e:
+                print(f"[OCR] pytesseract extraction error: {e}")
 
-        # Validate whether image contains real product packaging text
+        # True packaging check: Only flag non-packaging if text was extracted and has 0 keywords
+        # If no text was extracted at all, label check is false
         is_valid_label = True
-        if is_tesseract_used:
-            if not is_packaging_text(raw_text):
-                is_valid_label = False
+        if not raw_text or len(raw_text.strip()) < 5:
+            is_valid_label = False
+            confidence = 0.0
         else:
-            filename = os.path.basename(image_path).lower()
-            if "reference" in image_path.lower() or "2.png" in filename or "5.png" in filename or "scn_" in filename or "test" in filename:
-                raw_text = self._get_fallback_ocr_text(image_path)
-                confidence = 0.96
-                is_valid_label = True
-            else:
-                raw_text = ""
-                confidence = 0.0
-                is_valid_label = False
+            is_valid_label = is_packaging_text(raw_text)
 
         cleaned_text = self.cleaner.clean(raw_text)
         normalized_text = self.normalizer.normalize(raw_text)
@@ -103,23 +109,3 @@ class OCRExtractor:
             "is_valid_label": is_valid_label,
             "quality": quality_res
         }
-
-    def _get_fallback_ocr_text(self, image_path: str) -> str:
-        """
-        Provides structured sample OCR text when native Tesseract executable is not installed.
-        """
-        return """
-        Lay's Classic Potato Chips
-        Thin & Crispy Potato Chips
-        Ingredients: Potatoes, Edible Vegetable Oil (Palmolein Oil), Iodised Salt.
-        NUTRITIONAL INFORMATION (Approx. Values): Energy (kcal) 536, Protein 6.8g, Carbohydrate 53.8g.
-        Net Wt. 52 g
-        MRP ₹ 20.00 (Inclusive of all taxes)
-        Mfd. & Mkt. by: PepsiCo India Holdings Pvt. Ltd. Village Channo, Patiala - 147 105, India.
-        fssai Lic. No. 10014063000346
-        For feedback or queries: Consumer Care: 1800 22 4020, consumercare@pepsico.com, www.lays.in
-        Mfg Date: 15 Jun 2024
-        Best Before: 14 Dec 2024
-        Country of Origin: India
-        Barcode: 8901499007567
-        """

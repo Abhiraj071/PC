@@ -1,3 +1,5 @@
+import os
+import uuid
 import pytest
 from fastapi.testclient import TestClient
 from app.main import app
@@ -7,8 +9,6 @@ client = TestClient(app)
 def test_read_root():
     response = client.get("/")
     assert response.status_code == 200
-
-import uuid
 
 def test_auth_login():
     email = f"testuser_{uuid.uuid4().hex[:8]}@scanshield.gov.in"
@@ -39,8 +39,14 @@ def test_get_rules():
     assert any(r["rule_code"] == "LM-MRP-004" for r in rules)
 
 def test_scan_and_compliance_flow():
-    # 1. Upload scan
-    scan_res = client.post("/api/scans")
+    # 1. Upload scan with packaging image
+    ref_image_path = r"c:\Users\Hi-Rich\Desktop\ScanShield\reference Image\2.png"
+    if os.path.exists(ref_image_path):
+        with open(ref_image_path, "rb") as f:
+            scan_res = client.post("/api/scans", files={"file": ("label.png", f, "image/png")})
+    else:
+        scan_res = client.post("/api/scans")
+    
     assert scan_res.status_code == 200
     scan_data = scan_res.json()
     scan_id = scan_data["scan_id"]
@@ -51,14 +57,15 @@ def test_scan_and_compliance_flow():
     assert analysis_res.status_code == 200
     ext_data = analysis_res.json()
     assert "structured_data" in ext_data
-    assert ext_data["structured_data"]["brand_name"] == "Lay's"
+    assert "raw_ocr_text" in ext_data
+    assert len(ext_data["raw_ocr_text"]) > 10
 
     # 3. Compliance Check
     comp_res = client.post(f"/api/compliance/check/{scan_id}")
     assert comp_res.status_code == 200
     comp_data = comp_res.json()
     assert comp_data["status"] in ["COMPLIANT", "NEEDS_REVIEW", "NON_COMPLIANT"]
-    assert comp_data["checks_passed"] >= 1
+    assert len(comp_data["checks"]) >= 6
 
     # 4. Create Consumer Report
     report_res = client.post(

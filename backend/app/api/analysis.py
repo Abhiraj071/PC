@@ -1,7 +1,10 @@
+import os
+import glob
 import json
 import uuid
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
+from app.config import settings
 from app.database import get_db
 from app.models.database_models import Scan, ExtractedData
 from app.ocr.extractor import OCRExtractor
@@ -18,35 +21,63 @@ def run_analysis(scan_id: str, db: Session = Depends(get_db)):
     if not scan:
         raise HTTPException(status_code=404, detail="Scan record not found")
 
-    image_to_process = scan.preprocessed_image_path or scan.original_image_path
+    # Find all side photos uploaded for this scan
+    upload_pattern = os.path.join(settings.UPLOAD_DIR, f"{scan_id}_*.jpg")
+    side_images = glob.glob(upload_pattern)
 
-    # OCR Extraction
-    ocr_res = ocr_extractor.extract(image_to_process)
+    if not side_images:
+        primary = scan.original_image_path or scan.preprocessed_image_path
+        if primary and os.path.exists(primary):
+            side_images = [primary]
 
-    if not ocr_res.get("is_valid_label", True):
+    extracted_sections = []
+    confidences = []
+    qualities = []
+
+    for img_path in side_images:
+        res = ocr_extractor.extract(img_path)
+        norm_txt = (res.get("normalized_text") or "").strip()
+        if norm_txt:
+            extracted_sections.append(norm_txt)
+            if res.get("confidence", 0) > 0:
+                confidences.append(res["confidence"])
+        if res.get("quality"):
+            qualities.append(res["quality"])
+
+    # If side images yielded no text, also try the preprocessed image
+    if not extracted_sections and scan.preprocessed_image_path and os.path.exists(scan.preprocessed_image_path):
+        res_prep = ocr_extractor.extract(scan.preprocessed_image_path)
+        norm_txt = (res_prep.get("normalized_text") or "").strip()
+        if norm_txt:
+            extracted_sections.append(norm_txt)
+            if res_prep.get("confidence", 0) > 0:
+                confidences.append(res_prep["confidence"])
+
+    if not extracted_sections:
         raise HTTPException(
             status_code=400,
-            detail="No product packaging label detected in this photo. A human face, selfie, or non-packaging photo cannot be processed. Please take a clear photo of a product package label containing Legal Metrology declarations."
+            detail="No readable text detected on the package label. Please ensure the label is clear, well-lit, and not blurred, then try again."
         )
 
-    raw_ocr_text = ocr_res["normalized_text"]
-    confidence = ocr_res["confidence"]
+    # Combine all extracted text across all product packaging sides
+    raw_ocr_text = "\n\n--- PACKAGING SECTION ---\n\n".join(extracted_sections)
+    avg_confidence = round(sum(confidences) / len(confidences), 2) if confidences else 0.85
 
-    # AI Information Extraction
+    # AI Information Extraction on real aggregated OCR text
     structured_info = ai_extractor.extract_structured_info(raw_ocr_text)
 
     # Store Extracted Data in DB
     existing_ext = db.query(ExtractedData).filter(ExtractedData.scan_id == scan_id).first()
     if existing_ext:
         existing_ext.raw_ocr_text = raw_ocr_text
-        existing_ext.confidence = confidence
+        existing_ext.confidence = avg_confidence
         existing_ext.extracted_json = json.dumps(structured_info)
     else:
         ext_record = ExtractedData(
             id=f"ext_{uuid.uuid4().hex[:12]}",
             scan_id=scan_id,
             raw_ocr_text=raw_ocr_text,
-            confidence=confidence,
+            confidence=avg_confidence,
             extracted_json=json.dumps(structured_info)
         )
         db.add(ext_record)
@@ -57,8 +88,8 @@ def run_analysis(scan_id: str, db: Session = Depends(get_db)):
     return {
         "scan_id": scan_id,
         "raw_ocr_text": raw_ocr_text,
-        "confidence": confidence,
-        "quality": ocr_res.get("quality", {}),
+        "confidence": avg_confidence,
+        "quality": qualities[0] if qualities else {},
         "structured_data": structured_info
     }
 
@@ -66,7 +97,6 @@ def run_analysis(scan_id: str, db: Session = Depends(get_db)):
 def get_analysis(scan_id: str, db: Session = Depends(get_db)):
     ext = db.query(ExtractedData).filter(ExtractedData.scan_id == scan_id).first()
     if not ext:
-        # Trigger analysis automatically if not run yet
         return run_analysis(scan_id, db)
 
     return {
