@@ -92,7 +92,12 @@ function showView(viewId) {
     });
 
     // Special View Triggers
-    if (viewId === 'my-reports') {
+    if (viewId === 'scan') {
+        renderSidesUI();
+        if (!mediaStream) {
+            startLiveCamera();
+        }
+    } else if (viewId === 'my-reports') {
         loadMyReports();
     } else if (viewId === 'inspector') {
         loadInspectorDashboard();
@@ -599,6 +604,7 @@ function startLiveCamera() {
             video.srcObject = stream;
             video.style.setProperty('display', 'block', 'important');
             video.classList.remove('d-none');
+            video.play().catch(err => console.warn("video.play error:", err));
         }
         
         if (placeholder) {
