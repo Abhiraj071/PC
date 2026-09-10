@@ -92,12 +92,7 @@ function showView(viewId) {
     });
 
     // Special View Triggers
-    if (viewId === 'scan') {
-        renderSidesUI();
-        if (!mediaStream) {
-            startLiveCamera();
-        }
-    } else if (viewId === 'my-reports') {
+    if (viewId === 'my-reports') {
         loadMyReports();
     } else if (viewId === 'inspector') {
         loadInspectorDashboard();
@@ -484,22 +479,8 @@ function renderSidesUI() {
 
     const countEl = document.getElementById('captured-count');
     const proceedCountEl = document.getElementById('btn-proceed-count');
-    const btnProceed = document.getElementById('btn-proceed-analysis');
-
     if (countEl) countEl.textContent = count;
     if (proceedCountEl) proceedCountEl.textContent = count;
-
-    if (btnProceed) {
-        if (count >= 1) {
-            btnProceed.removeAttribute('disabled');
-            btnProceed.className = 'btn btn-primary btn-lg rounded-pill px-5 py-3 fw-bold w-100 shadow';
-            btnProceed.innerHTML = `<i class="bi bi-cpu-fill me-2"></i> Proceed to AI Compliance Analysis (${count}/6 Sides Captured)`;
-        } else {
-            btnProceed.setAttribute('disabled', 'true');
-            btnProceed.className = 'btn btn-secondary btn-lg rounded-pill px-5 py-3 fw-bold w-100 shadow-sm';
-            btnProceed.innerHTML = `<i class="bi bi-lock-fill me-2"></i> Capture Product Label to Proceed (0/6)`;
-        }
-    }
 
     // Stepper Pills State
     PACKAGING_SIDES.forEach(s => {
@@ -561,14 +542,18 @@ function renderSidesUI() {
     // Submission Guard Button
     const btnProceed = document.getElementById('btn-proceed-analysis');
     if (btnProceed) {
-        if (count >= 6) {
+        if (count >= 1) {
             btnProceed.removeAttribute('disabled');
             btnProceed.className = 'btn btn-success btn-lg rounded-pill px-5 py-3 fw-bold w-100 shadow-sm';
-            btnProceed.innerHTML = '<i class="bi bi-check-circle-fill me-2 fs-5"></i> All 6 Sides Captured — Proceed to Legal Metrology Analysis &rarr;';
+            if (count >= 6) {
+                btnProceed.innerHTML = '<i class="bi bi-check-circle-fill me-2 fs-5"></i> All 6 Sides Captured — Proceed to Legal Metrology Analysis &rarr;';
+            } else {
+                btnProceed.innerHTML = `<i class="bi bi-arrow-right-circle-fill me-2 fs-5"></i> Proceed to Analysis (${count}/6 Sides Captured) &rarr;`;
+            }
         } else {
             btnProceed.setAttribute('disabled', 'true');
             btnProceed.className = 'btn btn-secondary btn-lg rounded-pill px-5 py-3 fw-bold w-100 shadow-sm';
-            btnProceed.innerHTML = `<i class="bi bi-lock-fill me-2"></i> Capture All 6 Sides to Proceed (${count}/6 Captured)`;
+            btnProceed.innerHTML = `<i class="bi bi-lock-fill me-2"></i> Capture Product Label Sides to Proceed (0/6 Captured)`;
         }
     }
 }
@@ -585,47 +570,25 @@ function startLiveCamera() {
 
     if (alignmentAlert) alignmentAlert.classList.add('d-none');
 
-    if (mediaStream && mediaStream.active) {
-        if (video) {
-            video.srcObject = mediaStream;
-            video.style.setProperty('display', 'block', 'important');
-            video.classList.remove('d-none');
-            video.play().catch(err => console.warn("video.play error:", err));
-        }
-        if (placeholder) {
-            placeholder.style.setProperty('display', 'none', 'important');
-            placeholder.classList.add('d-none');
-            placeholder.classList.remove('d-flex');
-        }
-        if (frameBox) frameBox.style.display = 'flex';
-        if (btnStart) btnStart.classList.add('d-none');
-        if (btnCapture) btnCapture.classList.remove('d-none');
-        if (btnStop) btnStop.classList.remove('d-none');
-        startFrameQualityMonitor();
-        return;
-    }
-
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        if (statusBadge) {
-            statusBadge.className = 'badge bg-warning text-dark position-absolute bottom-0 start-50 translate-middle-x mb-3 px-3 py-2 border border-warning shadow';
-            statusBadge.innerHTML = '<i class="bi bi-info-circle me-1"></i> Camera API restricted — Click "Upload Photo File" or "Demo Product" below';
-        }
+        alert("Live Camera API is not supported on this browser. Please use the Upload Photo File option.");
         return;
     }
 
-    if (statusBadge) {
-        statusBadge.className = 'badge bg-dark text-warning position-absolute bottom-0 start-50 translate-middle-x mb-3 px-3 py-2 border border-warning shadow';
-        statusBadge.innerHTML = '<i class="bi bi-hourglass-split me-1"></i> Requesting camera access...';
-    }
+    statusBadge.innerHTML = '<i class="bi bi-hourglass-split me-1"></i> Requesting camera access...';
 
-    const handleStreamSuccess = (stream) => {
-        mediaStream = stream;
-        if (video) {
-            video.srcObject = stream;
-            video.style.setProperty('display', 'block', 'important');
-            video.classList.remove('d-none');
-            video.play().catch(err => console.warn("video.play error:", err));
+    navigator.mediaDevices.getUserMedia({
+        video: {
+            facingMode: { ideal: 'environment' },
+            width: { ideal: 1280 },
+            height: { ideal: 720 }
         }
+    })
+    .then(stream => {
+        mediaStream = stream;
+        video.srcObject = stream;
+        video.style.setProperty('display', 'block', 'important');
+        video.classList.remove('d-none');
         
         if (placeholder) {
             placeholder.style.setProperty('display', 'none', 'important');
@@ -639,26 +602,11 @@ function startLiveCamera() {
         if (btnStop) btnStop.classList.remove('d-none');
 
         startFrameQualityMonitor();
-    };
-
-    navigator.mediaDevices.getUserMedia({
-        video: { facingMode: { ideal: 'environment' } }
     })
-    .then(handleStreamSuccess)
     .catch(err => {
-        console.warn("Environment camera failed, retrying with basic video constraint...", err);
-        navigator.mediaDevices.getUserMedia({ video: true })
-        .then(handleStreamSuccess)
-        .catch(err2 => {
-            console.error("Camera access denied or unequipped:", err2);
-            if (statusBadge) {
-                statusBadge.className = 'badge bg-danger text-white position-absolute bottom-0 start-50 translate-middle-x mb-3 px-3 py-2 border border-danger shadow';
-                statusBadge.innerHTML = '<i class="bi bi-exclamation-triangle-fill me-1"></i> Camera access unavailable — Tap "Upload Photo File" or "Demo Product" below';
-            }
-            if (btnStart) btnStart.classList.remove('d-none');
-            if (btnCapture) btnCapture.classList.add('d-none');
-            if (btnStop) btnStop.classList.add('d-none');
-        });
+        console.error("Camera access error:", err);
+        statusBadge.className = 'badge bg-danger text-white position-absolute bottom-0 start-50 translate-middle-x mb-3 px-3 py-2 border border-danger shadow';
+        statusBadge.innerHTML = '<i class="bi bi-exclamation-triangle-fill me-1"></i> Camera access denied. Use Upload Photo File below.';
     });
 }
 
@@ -789,6 +737,7 @@ function capturePhotoFromCamera() {
     const alignmentAlert = document.getElementById('alignment-alert');
 
     if (!video || !canvas) return;
+
     if (alignmentAlert) alignmentAlert.classList.add('d-none');
 
     const width = video.videoWidth || 1280;
@@ -821,21 +770,8 @@ function capturePhotoFromCamera() {
             }, 300);
         }
 
-        // Count total captured
-        let totalCaptured = 0;
-        PACKAGING_SIDES.forEach(s => {
-            if (appState.capturedSides[s.key] && appState.capturedSides[s.key].dataUrl) totalCaptured++;
-        });
-
-        if (totalCaptured === 6) {
-            renderSidesUI();
-            setTimeout(() => {
-                submitMultiSideScan();
-            }, 400);
-        } else {
-            autoAdvanceToNextSide();
-            renderSidesUI();
-        }
+        autoAdvanceToNextSide();
+        renderSidesUI();
     }, 'image/jpeg', 0.95);
 }
 
@@ -883,48 +819,11 @@ function stopLiveCamera() {
     if (btnStop) btnStop.classList.add('d-none');
 }
 
-function handleDirectFileUpload(event) {
-    const input = event.target;
-    if (input.files && input.files[0]) {
-        const file = input.files[0];
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            const dataUrl = e.target.result;
-            appState.capturedSides[appState.activeSide || 'front'] = {
-                dataUrl: dataUrl,
-                file: file,
-                timestamp: Date.now()
-            };
-            appState.capturedImage = dataUrl;
-
-            const preview1 = document.getElementById('preview-img-target');
-            const preview2 = document.getElementById('product-label-preview-img');
-            if (preview1) preview1.src = dataUrl;
-            if (preview2) preview2.src = dataUrl;
-
-            stopLiveCamera();
-            renderSidesUI();
-            uploadScanFile(file);
-        };
-        reader.readAsDataURL(file);
-    }
-}
-
-function useSampleDemoProduct() {
-    stopLiveCamera();
-    appState.capturedImage = "/reference Image/2.png";
-    const preview1 = document.getElementById('preview-img-target');
-    const preview2 = document.getElementById('product-label-preview-img');
-    if (preview1) preview1.src = appState.capturedImage;
-    if (preview2) preview2.src = appState.capturedImage;
-
-    showView('preview');
-    startAnalysisPipeline();
-}
-
 function triggerSimulatedScan() {
     appState.activeSide = 'front';
+    renderSidesUI();
     showView('scan');
+    startLiveCamera();
 }
 
 function submitMultiSideScan() {
@@ -934,7 +833,7 @@ function submitMultiSideScan() {
     });
 
     if (count < 1) {
-        alert("Please capture at least 1 side (preferably Front product label) to proceed to analysis.");
+        alert("Please capture at least 1 photo of the product packaging before analyzing.");
         return;
     }
 
