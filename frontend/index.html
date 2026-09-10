@@ -1,0 +1,1069 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ScanShield — Packaged Commodity Compliance Platform</title>
+    <!-- Bootstrap 5.3 CSS & Icons -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Custom Style -->
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+
+    <div class="app-container">
+
+        <!-- Top Application Header -->
+        <header class="app-header">
+            <a href="javascript:void(0)" onclick="showView('home')" class="brand-logo">
+                <div class="brand-icon">
+                    <i class="bi bi-shield-check"></i>
+                </div>
+                <div class="brand-text">
+                    <h1>ScanShield</h1>
+                    <span>Scan Today. Safer Tomorrow.</span>
+                </div>
+            </a>
+
+            <!-- Desktop Header Navigation Links -->
+            <nav class="desktop-nav-links" id="desktop-nav-container">
+                <a href="javascript:void(0)" class="desktop-nav-link active" onclick="showView('home')">Home</a>
+                <a href="javascript:void(0)" class="desktop-nav-link" onclick="showView('scan')">Scan Product</a>
+                <a href="javascript:void(0)" class="desktop-nav-link" onclick="showView('my-reports')">My Reports</a>
+                <a href="javascript:void(0)" class="desktop-nav-link" onclick="showView('learn')">Learn & Rules</a>
+                <a href="javascript:void(0)" class="desktop-nav-link d-none" id="nav-link-inspector" onclick="showView('inspector')">Inspector Portal</a>
+                <a href="javascript:void(0)" class="desktop-nav-link d-none" id="nav-link-admin" onclick="showView('admin')">Admin Portal</a>
+            </nav>
+
+            <div class="d-flex align-items-center gap-2" id="header-auth-container">
+                <span class="badge bg-light text-dark border px-2 py-1" style="font-size: 12px;"><i class="bi bi-globe me-1"></i>EN</span>
+                
+                <!-- Unauthenticated State: Login / Register Button -->
+                <button class="btn btn-sm btn-primary rounded-pill px-3 py-1 fw-bold" style="font-size: 12px;" onclick="openAuthModal()" id="btn-header-login">
+                    <i class="bi bi-box-arrow-in-right me-1"></i> Sign In / Register
+                </button>
+
+                <!-- Authenticated State: User Profile Badge -->
+                <div id="user-profile-badge" class="d-none align-items-center gap-2">
+                    <span id="user-role-pill" class="badge bg-success px-2 py-1" style="font-size: 11px;">CONSUMER</span>
+                    <span id="user-name-display" class="fw-bold small text-dark"></span>
+                    <button class="btn btn-sm btn-outline-danger rounded-pill px-2 py-1" style="font-size: 11px;" onclick="logout()" title="Sign Out">
+                        <i class="bi bi-box-arrow-right me-1"></i> Logout
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main View Container -->
+        <main class="view-content">
+
+            <!-- 1. HOME VIEW -->
+            <div id="view-home" class="app-view">
+                <div class="hero-banner">
+                    <span class="hero-pill"><i class="bi bi-leaf-fill me-1 text-success"></i> For a Safer, More Transparent Market</span>
+                    <h2 class="hero-title">Scan Products.<br>Know the Truth.<br><span>Choose Better.</span></h2>
+                    <p class="text-muted mb-4" style="max-width: 600px;">Scan or upload a product label to check if it complies with Legal Metrology rules. Because you deserve clear, correct and honest information.</p>
+                    
+                    <div class="d-flex flex-wrap gap-3">
+                        <button class="btn-scanshield-primary" onclick="triggerSimulatedScan()">
+                            <i class="bi bi-camera-fill fs-5"></i> Scan Product <i class="bi bi-chevron-right ms-2"></i>
+                        </button>
+                        <label for="label-file-input" class="btn-scanshield-outline m-0 cursor-pointer">
+                            <i class="bi bi-image fs-5"></i> Upload Image <i class="bi bi-chevron-right ms-2"></i>
+                        </label>
+                        <input type="file" id="label-file-input" accept="image/*" class="d-none">
+                    </div>
+                </div>
+
+                <!-- How It Works Timeline -->
+                <div class="mb-5">
+                    <h4 class="fw-bold mb-1">How It Works</h4>
+                    <p class="text-muted small mb-4">Just 3 simple steps</p>
+                    <div class="row g-3 text-center how-it-works-connector">
+                        <div class="col-md-4">
+                            <div class="card-scanshield step-card p-4 h-100">
+                                <span class="step-badge-num">1</span>
+                                <div class="brand-icon mx-auto mb-3 bg-primary-subtle text-primary" style="width:52px; height:52px; border-radius:50%; font-size:24px; box-shadow:none;"><i class="bi bi-camera"></i></div>
+                                <h6 class="fw-bold mb-2">Scan or Upload</h6>
+                                <p class="text-muted small mb-0">Capture the product label or upload an image</p>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="card-scanshield step-card p-4 h-100">
+                                <span class="step-badge-num">2</span>
+                                <div class="brand-icon mx-auto mb-3 bg-success-subtle text-success" style="width:52px; height:52px; border-radius:50%; font-size:24px; box-shadow:none;"><i class="bi bi-file-earmark-text"></i></div>
+                                <h6 class="fw-bold mb-2">AI Analysis</h6>
+                                <p class="text-muted small mb-0">We extract information and check compliance</p>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="card-scanshield step-card p-4 h-100">
+                                <span class="step-badge-num">3</span>
+                                <div class="brand-icon mx-auto mb-3 bg-info-subtle text-info" style="width:52px; height:52px; border-radius:50%; font-size:24px; box-shadow:none;"><i class="bi bi-bar-chart-line"></i></div>
+                                <h6 class="fw-bold mb-2">Get Results</h6>
+                                <p class="text-muted small mb-0">See compliance status and detailed insights</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- What We Check Categories -->
+                <div class="mb-4">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h4 class="fw-bold mb-0">What We Check</h4>
+                        <a href="javascript:void(0)" onclick="showView('learn')" class="small text-primary text-decoration-none fw-bold">View all rules &rarr;</a>
+                    </div>
+                    <div class="row g-3">
+                        <div class="col-6 col-md-4 col-lg-2">
+                            <div class="rule-category-card text-center p-3">
+                                <div class="bg-primary-subtle text-primary rounded-circle mx-auto mb-2 d-flex align-items-center justify-content-center" style="width:44px; height:44px;">
+                                    <i class="bi bi-tag-fill fs-5"></i>
+                                </div>
+                                <div class="info-label justify-content-center text-dark fw-bold" style="font-size:12px;">MRP & Price Details</div>
+                            </div>
+                        </div>
+                        <div class="col-6 col-md-4 col-lg-2">
+                            <div class="rule-category-card text-center p-3">
+                                <div class="bg-success-subtle text-success rounded-circle mx-auto mb-2 d-flex align-items-center justify-content-center" style="width:44px; height:44px;">
+                                    <i class="bi bi-box-seam-fill fs-5"></i>
+                                </div>
+                                <div class="info-label justify-content-center text-dark fw-bold" style="font-size:12px;">Net Quantity</div>
+                            </div>
+                        </div>
+                        <div class="col-6 col-md-4 col-lg-2">
+                            <div class="rule-category-card text-center p-3">
+                                <div class="bg-info-subtle text-info rounded-circle mx-auto mb-2 d-flex align-items-center justify-content-center" style="width:44px; height:44px;">
+                                    <i class="bi bi-building-fill fs-5"></i>
+                                </div>
+                                <div class="info-label justify-content-center text-dark fw-bold" style="font-size:12px;">Manufacturer / Packer / Importer</div>
+                            </div>
+                        </div>
+                        <div class="col-6 col-md-4 col-lg-2">
+                            <div class="rule-category-card text-center p-3">
+                                <div class="bg-warning-subtle text-warning-emphasis rounded-circle mx-auto mb-2 d-flex align-items-center justify-content-center" style="width:44px; height:44px;">
+                                    <i class="bi bi-calendar-event-fill fs-5"></i>
+                                </div>
+                                <div class="info-label justify-content-center text-dark fw-bold" style="font-size:12px;">Date (Mfg. / Exp. / Best Before)</div>
+                            </div>
+                        </div>
+                        <div class="col-6 col-md-4 col-lg-2">
+                            <div class="rule-category-card text-center p-3">
+                                <div class="bg-danger-subtle text-danger rounded-circle mx-auto mb-2 d-flex align-items-center justify-content-center" style="width:44px; height:44px;">
+                                    <i class="bi bi-telephone-fill fs-5"></i>
+                                </div>
+                                <div class="info-label justify-content-center text-dark fw-bold" style="font-size:12px;">Consumer Care Details</div>
+                            </div>
+                        </div>
+                        <div class="col-6 col-md-4 col-lg-2">
+                            <div class="rule-category-card text-center p-3">
+                                <div class="bg-secondary-subtle text-secondary rounded-circle mx-auto mb-2 d-flex align-items-center justify-content-center" style="width:44px; height:44px;">
+                                    <i class="bi bi-three-dots fs-5"></i>
+                                </div>
+                                <div class="info-label justify-content-center text-dark fw-bold" style="font-size:12px;">Other Declarations</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 2. SCAN VIEW (6-Side Guided Packaging Capture) -->
+            <div id="view-scan" class="app-view hidden">
+                <div class="max-w-900 mx-auto">
+                    <!-- Title & Overall Progress Badge -->
+                    <div class="d-flex flex-wrap align-items-center justify-content-between mb-3 gap-2">
+                        <div>
+                            <h4 class="fw-bold mb-1"><i class="bi bi-box-seam text-primary me-2"></i>Multi-Side Product Photo Capture</h4>
+                            <p class="text-muted small mb-0">Capture photos of all 6 sides of the product packaging for Legal Metrology audit</p>
+                        </div>
+                        <div>
+                            <span id="side-progress-badge" class="badge bg-primary px-3 py-2 fs-6 rounded-pill shadow-sm">
+                                <i class="bi bi-camera-fill me-1"></i> Captured: <span id="captured-count">0</span> / 6 Sides
+                            </span>
+                        </div>
+                    </div>
+
+                    <!-- 6-Side Stepper Navigation Pills -->
+                    <div class="side-stepper-container mb-3 overflow-auto">
+                        <div class="d-flex gap-2 min-w-max" id="side-stepper-pills">
+                            <button type="button" class="side-step-btn active" data-side="front" onclick="selectSide('front')">
+                                <span class="step-num">1</span>
+                                <span class="step-label">Front Side</span>
+                                <span class="step-status-badge" id="pill-badge-front"><i class="bi bi-circle"></i></span>
+                            </button>
+                            <button type="button" class="side-step-btn" data-side="back" onclick="selectSide('back')">
+                                <span class="step-num">2</span>
+                                <span class="step-label">Back Side</span>
+                                <span class="step-status-badge" id="pill-badge-back"><i class="bi bi-circle"></i></span>
+                            </button>
+                            <button type="button" class="side-step-btn" data-side="left" onclick="selectSide('left')">
+                                <span class="step-num">3</span>
+                                <span class="step-label">Left Side</span>
+                                <span class="step-status-badge" id="pill-badge-left"><i class="bi bi-circle"></i></span>
+                            </button>
+                            <button type="button" class="side-step-btn" data-side="right" onclick="selectSide('right')">
+                                <span class="step-num">4</span>
+                                <span class="step-label">Right Side</span>
+                                <span class="step-status-badge" id="pill-badge-right"><i class="bi bi-circle"></i></span>
+                            </button>
+                            <button type="button" class="side-step-btn" data-side="top" onclick="selectSide('top')">
+                                <span class="step-num">5</span>
+                                <span class="step-label">Top Side</span>
+                                <span class="step-status-badge" id="pill-badge-top"><i class="bi bi-circle"></i></span>
+                            </button>
+                            <button type="button" class="side-step-btn" data-side="bottom" onclick="selectSide('bottom')">
+                                <span class="step-num">6</span>
+                                <span class="step-label">Bottom Side</span>
+                                <span class="step-status-badge" id="pill-badge-bottom"><i class="bi bi-circle"></i></span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Active Side Guidance Banner -->
+                    <div class="active-side-card card-scanshield p-3 mb-3 bg-light border-primary" id="active-side-guidance-card">
+                        <div class="d-flex align-items-center gap-3">
+                            <div class="active-side-icon-box bg-primary text-white rounded-3 p-3 text-center">
+                                <i id="active-side-icon" class="bi bi-box-seam fs-2"></i>
+                            </div>
+                            <div class="flex-grow-1">
+                                <div class="d-flex align-items-center gap-2 mb-1">
+                                    <span id="active-side-step-pill" class="badge bg-primary">Step 1 of 6</span>
+                                    <h6 id="active-side-title" class="fw-bold mb-0 text-dark">FRONT SIDE — Brand & Product Name</h6>
+                                </div>
+                                <p id="active-side-instruction" class="small text-muted mb-0">
+                                    Turn product to the front. Make sure Brand Name, Product Title, and front artwork are clearly visible inside the targeting frame.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Frame Alignment Alert Banner -->
+                    <div id="alignment-alert" class="alert alert-warning py-2 small d-none mb-3 border-warning fw-bold text-dark rounded-3 text-center">
+                        <i class="bi bi-exclamation-triangle-fill text-warning me-1"></i>
+                        <span id="alignment-alert-text">Position product label inside the green targeting frame to capture.</span>
+                    </div>
+
+                    <!-- Viewfinder Container -->
+                    <div class="scanner-viewport mb-3 position-relative overflow-hidden rounded-4 bg-dark shadow-sm" style="min-height: 380px;">
+                        <!-- Target Side Badge Overlay inside camera -->
+                        <div class="position-absolute top-0 start-0 m-3 z-3">
+                            <span id="viewfinder-side-tag" class="badge bg-primary text-white px-3 py-2 shadow border border-white" style="font-size: 13px;">
+                                <i class="bi bi-camera me-1"></i> TARGETING: FRONT SIDE
+                            </span>
+                        </div>
+
+                        <!-- Live Video Stream -->
+                        <video id="webcam-video" autoplay playsinline class="w-100 h-100 rounded-4" style="object-fit: cover; min-height: 380px; display: none;"></video>
+                        
+                        <!-- Camera Standby Placeholder -->
+                        <div id="camera-placeholder" class="flex-column align-items-center justify-content-center w-100 h-100 p-4 text-white position-absolute top-0 start-0 d-flex" style="min-height: 380px; background: linear-gradient(145deg, #0b192c, #1e293b);">
+                            <i class="bi bi-camera-video-fill display-1 text-primary mb-3"></i>
+                            <h5 class="fw-bold mb-2 text-white">Live Camera Viewfinder</h5>
+                            <p class="small text-white-50 mb-3 text-center" style="max-width: 440px;">Tap <strong>"Start Live Camera"</strong> to stream your camera feed and snap all 6 sides, or click <strong>"Upload Image File"</strong>.</p>
+                        </div>
+
+                        <!-- Scanner Overlay Box with Corner Reticles & Visual Target Hint -->
+                        <div class="scanner-frame" id="scanner-frame-box" style="display: none;">
+                            <div class="corner-bracket corner-top-left"></div>
+                            <div class="corner-bracket corner-top-right"></div>
+                            <div class="corner-bracket corner-bottom-left"></div>
+                            <div class="corner-bracket corner-bottom-right"></div>
+                            <div class="scanning-line"></div>
+                            <div class="alignment-target-hint" id="alignment-target-hint">
+                                <i class="bi bi-aspect-ratio me-1" id="alignment-hint-icon"></i> <span id="alignment-hint-text">ALIGN PRODUCT INSIDE FRAME</span>
+                            </div>
+                        </div>
+
+                        <!-- Camera Status Badge -->
+                        <span id="camera-status-badge" class="badge bg-dark text-warning position-absolute bottom-0 start-50 translate-middle-x mb-3 px-3 py-2 border border-warning shadow">
+                            <i class="bi bi-info-circle me-1"></i> Camera Inactive — Tap 'Start Live Camera'
+                        </span>
+
+                        <!-- Hidden Snapshot Canvas -->
+                        <canvas id="camera-canvas" class="d-none"></canvas>
+                    </div>
+
+                    <!-- Camera Control Buttons -->
+                    <div class="d-flex flex-wrap justify-content-center gap-3 mb-4">
+                        <button class="btn-scanshield-primary py-3 px-4" id="btn-start-camera" onclick="startLiveCamera()">
+                            <i class="bi bi-camera-video-fill me-1 fs-5"></i> Start Live Camera
+                        </button>
+                        <button class="btn btn-success rounded-pill px-4 py-3 fw-bold shadow-sm d-none" id="btn-capture-photo" onclick="capturePhotoFromCamera()">
+                            <i class="bi bi-camera-fill me-1 fs-5"></i> <span id="btn-capture-text">Take Snap of Front Side</span>
+                        </button>
+                        <button class="btn btn-outline-secondary rounded-pill px-3 py-3 fw-bold d-none" id="btn-stop-camera" onclick="stopLiveCamera()">
+                            <i class="bi bi-camera-video-off me-1"></i> Stop Camera
+                        </button>
+                        <label for="label-file-input" class="btn-scanshield-outline m-0 cursor-pointer py-3 px-4">
+                            <i class="bi bi-upload me-1 fs-5"></i> Upload Photo File
+                        </label>
+                        <input type="file" id="label-file-input" accept="image/*" class="d-none">
+                    </div>
+
+                    <!-- 6-Side Captured Thumbnails Deck -->
+                    <div class="card-scanshield p-4 bg-light border mb-4">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h6 class="fw-bold text-navy mb-0"><i class="bi bi-images me-2 text-primary"></i>Captured 6-Side Product Deck</h6>
+                            <span class="small text-muted">Tap any card to re-capture or select side</span>
+                        </div>
+
+                        <div class="row g-3" id="captured-thumbnails-grid">
+                            <!-- Dynamically populated 6 side thumbnail cards -->
+                        </div>
+
+                        <!-- Submission Button -->
+                        <div class="mt-4 text-center">
+                            <button id="btn-proceed-analysis" class="btn btn-secondary btn-lg rounded-pill px-5 py-3 fw-bold w-100 shadow-sm" disabled onclick="submitMultiSideScan()">
+                                <i class="bi bi-lock-fill me-2"></i> Capture All 6 Sides to Proceed to Analysis (<span id="btn-proceed-count">0</span>/6)
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 3. IMAGE PREVIEW VIEW -->
+            <div id="view-preview" class="app-view hidden">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <span class="badge bg-light text-primary border px-3 py-2">Step 3/6 — Image Preview</span>
+                    <button class="btn btn-sm btn-outline-secondary" onclick="showView('scan')">Retake Image</button>
+                </div>
+                
+                <div class="row g-4 align-items-center">
+                    <div class="col-md-6">
+                        <div class="card-scanshield p-2 text-center">
+                            <img id="preview-img-target" src="/reference Image/2.png" class="img-fluid rounded-3" style="max-height: 420px; object-fit: contain;">
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="alert alert-success d-flex align-items-center p-3 mb-3 rounded-3">
+                            <i class="bi bi-check-circle-fill fs-3 text-success me-3"></i>
+                            <div>
+                                <h6 class="fw-bold mb-1">Image Quality Check Passed</h6>
+                                <p class="small text-muted mb-0">OpenCV Laplacian variance blur check confirmed image is clear and readable for Tesseract OCR.</p>
+                            </div>
+                        </div>
+                        <div class="d-flex flex-column gap-3">
+                            <button class="btn-scanshield-primary py-3" onclick="startAnalysisPipeline()">
+                                Run Tesseract OCR & AI Extraction <i class="bi bi-arrow-right ms-2"></i>
+                            </button>
+                            <button class="btn-scanshield-outline py-3" onclick="showView('scan')">
+                                <i class="bi bi-arrow-counterclockwise"></i> Upload Different Image
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 4. ANALYZING VIEW -->
+            <div id="view-analyzing" class="app-view hidden text-center py-4">
+                <h3 class="fw-bold text-navy mb-2">Analyzing Product Label</h3>
+                <p class="text-muted mb-4">OpenCV Preprocessing & Tesseract OCR text extraction in progress...</p>
+
+                <div class="progress mb-3 mx-auto" style="height: 12px; max-width: 480px;">
+                    <div id="analysis-progress" class="progress-bar bg-success progress-bar-striped progress-bar-animated" style="width: 0%;"></div>
+                </div>
+                <h4 id="analysis-percent" class="fw-bold text-success mb-4">0%</h4>
+
+                <div class="card-scanshield text-start p-4 mx-auto" style="max-width: 540px;">
+                    <div class="d-flex align-items-center gap-3 mb-3">
+                        <i class="bi bi-check-circle-fill text-success fs-5"></i>
+                        <span class="fw-bold">1. OpenCV Noise Reduction & Rotation Correction</span>
+                        <span class="ms-auto badge bg-success-subtle text-success px-3 py-2">Done</span>
+                    </div>
+                    <div class="d-flex align-items-center gap-3 mb-3">
+                        <i class="bi bi-check-circle-fill text-success fs-5"></i>
+                        <span class="fw-bold">2. Tesseract OCR Text Extraction</span>
+                        <span class="ms-auto badge bg-success-subtle text-success px-3 py-2">Done</span>
+                    </div>
+                    <div class="d-flex align-items-center gap-3 mb-3">
+                        <i class="bi bi-arrow-repeat text-primary fs-5 spinner-border spinner-border-sm"></i>
+                        <span class="fw-bold">3. Pattern Recognition & Declaration Parser</span>
+                        <span class="ms-auto badge bg-primary-subtle text-primary px-3 py-2">Processing</span>
+                    </div>
+                    <div class="d-flex align-items-center gap-3">
+                        <i class="bi bi-clock text-muted fs-5"></i>
+                        <span class="text-muted fw-bold">4. Legal Metrology Rule Engine Audit</span>
+                        <span class="ms-auto badge bg-light text-muted px-3 py-2">Pending</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 5. PRODUCT INFORMATION & EDITABLE VERIFICATION VIEW -->
+            <div id="view-product" class="app-view hidden">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <div>
+                        <span class="badge bg-light text-primary border px-3 py-1">Step 5/6 — Product Declarations</span>
+                        <h4 class="fw-bold mb-0 mt-1">Verified Extracted Declarations</h4>
+                    </div>
+                    <button class="btn btn-sm btn-outline-secondary" onclick="showView('scan')">Scan New Image</button>
+                </div>
+
+                <div class="row g-4">
+                    <!-- Left: Uploaded Image Preview -->
+                    <div class="col-lg-4">
+                        <div class="card-scanshield p-3 text-center">
+                            <h6 class="fw-bold mb-2">Processed Label Image</h6>
+                            <img id="product-label-preview-img" src="/reference Image/5.png" class="img-fluid rounded border mb-3" style="max-height: 320px; object-fit: contain;">
+                            <span class="badge bg-success-subtle text-success p-2 w-100"><i class="bi bi-check-circle me-1"></i> Preprocessed with OpenCV</span>
+                        </div>
+                    </div>
+
+                    <!-- Right: Editable Product Declarations Form -->
+                    <div class="col-lg-8">
+                        <div class="card-scanshield p-4">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <h6 class="fw-bold text-primary mb-0"><i class="bi bi-pencil-square me-2"></i>Review & Verify Declarations</h6>
+                                <small class="text-muted">Edit any OCR field before running Rule Engine</small>
+                            </div>
+
+                            <form id="product-edit-form">
+                                <div class="row g-3">
+                                    <div class="col-md-6">
+                                        <label class="form-label fw-bold small text-muted">Brand Name</label>
+                                        <input type="text" id="input-brand-name" class="form-control fw-bold" value="Lay's">
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label fw-bold small text-muted">Product Name</label>
+                                        <input type="text" id="input-product-name" class="form-control fw-bold" value="Classic Potato Chips">
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label fw-bold small text-muted">MRP (Inclusive of all taxes)</label>
+                                        <input type="text" id="input-mrp" class="form-control fw-bold text-success" value="₹ 20.00 (Inclusive of all taxes)">
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label fw-bold small text-muted">Net Quantity</label>
+                                        <input type="text" id="input-net-qty" class="form-control fw-bold" value="52 g">
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label fw-bold small text-muted">Manufacture / Packing Date</label>
+                                        <input type="text" id="input-mfg-date" class="form-control" value="15 Jun 2024">
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label fw-bold small text-muted">Best Before / Expiry Date</label>
+                                        <input type="text" id="input-exp-date" class="form-control" value="14 Dec 2024">
+                                    </div>
+                                    <div class="col-12">
+                                        <label class="form-label fw-bold small text-muted">Manufacturer / Importer Name & Complete Address</label>
+                                        <textarea id="input-manufacturer" class="form-control" rows="2">PepsiCo India Holdings Pvt. Ltd. Village Channo, Patiala - 147 105, India</textarea>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label fw-bold small text-muted">Consumer Care Contacts (Toll-Free & Email)</label>
+                                        <input type="text" id="input-consumer-care" class="form-control" value="1800 22 4020, consumercare@pepsico.com">
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label fw-bold small text-muted">FSSAI License No / Country of Origin</label>
+                                        <input type="text" id="input-fssai" class="form-control" value="10014063000346 (India)">
+                                    </div>
+                                </div>
+
+                                <div class="mt-4">
+                                    <button type="button" class="btn-scanshield-primary w-100 py-3" onclick="triggerRuleEngineExecution()">
+                                        Run Legal Metrology Rule Engine Audit <i class="bi bi-shield-check ms-2"></i>
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 6. COMPLIANCE RESULT VIEW -->
+            <div id="view-compliance" class="app-view hidden">
+                <div class="row g-4">
+                    <!-- Status Hero Column -->
+                    <div class="col-lg-5">
+                        <div id="compliance-hero-card" class="card-scanshield text-center p-4 h-100 badge-compliant d-flex flex-column justify-content-center">
+                            <div class="brand-icon mx-auto mb-3 bg-success text-white" style="width: 70px; height: 70px; font-size: 36px;">
+                                <i class="bi bi-check-lg"></i>
+                            </div>
+                            <h2 id="compliance-hero-title" class="fw-bold text-success mb-2">COMPLIANT</h2>
+                            <p id="compliance-hero-desc" class="text-muted mb-4">This packaged commodity satisfies mandatory Legal Metrology Rules, 2011 provisions.</p>
+                            
+                            <div class="d-flex justify-content-around bg-white rounded-3 p-3 text-center border mb-3">
+                                <div>
+                                    <h3 id="stat-checks-passed" class="fw-bold text-success mb-0">6</h3>
+                                    <small class="text-muted">Passed</small>
+                                </div>
+                                <div class="vr"></div>
+                                <div>
+                                    <h3 id="stat-issues-found" class="fw-bold text-danger mb-0">0</h3>
+                                    <small class="text-muted">Issues</small>
+                                </div>
+                                <div class="vr"></div>
+                                <div>
+                                    <h3 id="stat-confidence" class="fw-bold text-primary mb-0">98%</h3>
+                                    <small class="text-muted">Confidence</small>
+                                </div>
+                            </div>
+
+                            <button class="btn-scanshield-primary mb-2" onclick="showView('declaration')">
+                                View Detailed Rule Matrix &rarr;
+                            </button>
+                            <button class="btn-scanshield-outline" onclick="showView('report-concern')">
+                                Report a Concern to Inspector
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Highlights & Summary Column -->
+                    <div class="col-lg-7">
+                        <div class="card-scanshield p-4 h-100">
+                            <h5 class="fw-bold mb-3"><i class="bi bi-list-check text-primary me-2"></i>Audit Key Highlights</h5>
+                            <ul id="compliance-highlights" class="list-unstyled mb-4">
+                                <!-- Dynamic -->
+                            </ul>
+
+                            <h6 class="fw-bold text-muted mb-3">Audit Summary</h6>
+                            <div class="p-3 bg-light rounded-3 border">
+                                <p class="small text-muted mb-0">All declarations on the principal display panel were parsed and checked against Rule 6 of the Legal Metrology (Packaged Commodities) Rules, 2011. No missing or illegal declarations were detected.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 7. DECLARATION ANALYSIS VIEW -->
+            <div id="view-declaration" class="app-view hidden">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <div>
+                        <h4 class="fw-bold mb-0">Legal Metrology Audit Matrix</h4>
+                        <p class="text-muted small mb-0">Rule-by-rule evaluation results</p>
+                    </div>
+                    <button class="btn btn-sm btn-outline-secondary" onclick="showView('compliance')">&larr; Back to Compliance Result</button>
+                </div>
+
+                <div id="declaration-checks-list" class="row g-3">
+                    <!-- Dynamic -->
+                </div>
+            </div>
+
+            <!-- 8. REPORT CONCERN VIEW -->
+            <div id="view-report-concern" class="app-view hidden">
+                <div class="max-w-700 mx-auto">
+                    <h4 class="fw-bold mb-1">Report a Concern</h4>
+                    <p class="text-muted small mb-4">Submit a formal consumer report to Legal Metrology enforcement inspectors.</p>
+
+                    <form id="consumer-report-form">
+                        <div class="card-scanshield p-4 mb-4">
+                            <div class="mb-3">
+                                <label class="form-label fw-bold small text-muted">Target Product</label>
+                                <input type="text" id="report-target-prod" class="form-control fw-bold" value="Lay's Classic Potato Chips" readonly>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label fw-bold small text-muted">Issue Flag Category</label>
+                                <select class="form-select">
+                                    <option>Missing Consumer Care Details</option>
+                                    <option>MRP Formatting or Overcharging Violation</option>
+                                    <option>Net Quantity Discrepancy</option>
+                                    <option>Low Readability / Improper Font Size</option>
+                                    <option>Missing Manufacture Date</option>
+                                </select>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label fw-bold small text-muted">Consumer Remarks / Discrepancy Notes</label>
+                                <textarea id="report-user-comment" class="form-control" rows="4" placeholder="Enter details observed on the package label..."></textarea>
+                            </div>
+                        </div>
+
+                        <button type="submit" class="btn-scanshield-primary w-100 py-3">
+                            Submit Report to Inspector Portal <i class="bi bi-send ms-2"></i>
+                        </button>
+                    </form>
+                </div>
+            </div>
+
+            <!-- 9. REPORT SUBMITTED VIEW -->
+            <div id="view-report-submitted" class="app-view hidden text-center py-4">
+                <div class="brand-icon mx-auto mb-3 bg-success text-white" style="width: 80px; height: 80px; font-size: 40px;">
+                    <i class="bi bi-check-circle-fill"></i>
+                </div>
+                <h3 class="fw-bold text-success mb-1">Report Submitted Successfully!</h3>
+                <p class="text-muted mb-4">Your concern has been registered and queued for inspector verification.</p>
+
+                <div class="card-scanshield text-start p-4 mb-4 mx-auto" style="max-width: 500px;">
+                    <div class="d-flex justify-content-between mb-3 border-bottom pb-2">
+                        <span class="text-muted">Official Report ID:</span>
+                        <strong id="submitted-report-id" class="text-primary fs-5">CR-2024-10245</strong>
+                    </div>
+                    <div class="d-flex justify-content-between mb-3 border-bottom pb-2">
+                        <span class="text-muted">Status:</span>
+                        <span class="badge bg-warning text-dark px-3 py-2">Under Review</span>
+                    </div>
+                    <div class="d-flex justify-content-between">
+                        <span class="text-muted">Submission Timestamp:</span>
+                        <span id="submitted-report-date" class="fw-bold">Today</span>
+                    </div>
+                </div>
+
+                <div class="d-flex justify-content-center gap-3">
+                    <button class="btn-scanshield-primary px-4" onclick="showView('scan')">
+                        Scan Another Product
+                    </button>
+                    <button class="btn-scanshield-outline px-4" onclick="showView('my-reports')">
+                        View My Reports
+                    </button>
+                </div>
+            </div>
+
+            <!-- 10. MY REPORTS VIEW -->
+            <div id="view-my-reports" class="app-view hidden">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <div>
+                        <h4 class="fw-bold mb-0">My Consumer Reports</h4>
+                        <p class="text-muted small mb-0">Track inspector status and actions taken</p>
+                    </div>
+                    <button class="btn-scanshield-primary btn-sm" onclick="showView('scan')">+ New Scan</button>
+                </div>
+
+                <div id="my-reports-list" class="row g-3">
+                    <!-- Dynamic -->
+                </div>
+            </div>
+
+            <!-- 11. LEARN VIEW -->
+            <div id="view-learn" class="app-view hidden">
+                <h4 class="fw-bold mb-1">Legal Metrology Knowledge Base</h4>
+                <p class="text-muted small mb-4">Official rules, consumer rights, and declaration guidelines</p>
+
+                <div class="row g-4">
+                    <div class="col-md-6">
+                        <div class="card-scanshield p-4 h-100">
+                            <h5 class="fw-bold text-primary mb-2"><i class="bi bi-book me-2"></i>Packaged Commodities Rules, 2011</h5>
+                            <p class="text-muted small mb-0">Rule 6 requires every packaged commodity to display Manufacturer Name & Address, Generic Name, Net Quantity, MRP (incl. taxes), Month/Year of Mfg, Consumer Care details, and Country of Origin on the principal display panel.</p>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="card-scanshield p-4 h-100">
+                            <h5 class="fw-bold text-success mb-2"><i class="bi bi-fonts me-2"></i>Font Size Specifications</h5>
+                            <p class="text-muted small mb-0">Minimum font heights are mandatory based on principal display panel surface area: up to 100cm² requires ≥1mm; 100-500cm² requires ≥2mm; 500-1000cm² requires ≥3mm; >1000cm² requires ≥5mm.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 12. INSPECTOR WORKSTATION VIEW -->
+            <div id="view-inspector" class="app-view hidden">
+                <div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
+                    <div>
+                        <span class="badge bg-primary px-3 py-1 mb-1"><i class="bi bi-person-badge me-1"></i> Legal Metrology Enforcement Portal</span>
+                        <h4 class="fw-bold mb-0">Inspector Workstation & Case Queue</h4>
+                    </div>
+                    <div>
+                        <span class="badge bg-light text-dark border px-3 py-2 fw-bold" id="insp-badge-display">
+                            <i class="bi bi-shield-check text-warning me-1"></i> Badge: INS-LM-8902
+                        </span>
+                    </div>
+                </div>
+
+                <!-- Inspector Dashboard Stats Summary -->
+                <div class="row g-3 mb-4">
+                    <div class="col-6 col-md-3">
+                        <div class="card-scanshield p-3 text-center border-start border-primary border-4 h-100">
+                            <small class="text-muted fw-bold d-block mb-1">Total Assigned Cases</small>
+                            <h3 class="fw-bold text-navy mb-0" id="stat-insp-total">24</h3>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <div class="card-scanshield p-3 text-center border-start border-warning border-4 h-100">
+                            <small class="text-muted fw-bold d-block mb-1">Pending Review</small>
+                            <h3 class="fw-bold text-warning mb-0" id="stat-insp-pending">4</h3>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <div class="card-scanshield p-3 text-center border-start border-success border-4 h-100">
+                            <small class="text-muted fw-bold d-block mb-1">Verified Compliant</small>
+                            <h3 class="fw-bold text-success mb-0" id="stat-insp-verified">18</h3>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <div class="card-scanshield p-3 text-center border-start border-danger border-4 h-100">
+                            <small class="text-muted fw-bold d-block mb-1">Non-Compliant / Rejected</small>
+                            <h3 class="fw-bold text-danger mb-0" id="stat-insp-rejected">2</h3>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Filter Pills Bar -->
+                <div class="card-scanshield p-3 mb-4">
+                    <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
+                        <div class="btn-group btn-group-sm" role="group">
+                            <button type="button" class="btn btn-outline-primary active" id="filter-queue-all" onclick="filterInspectorQueue('ALL')">All Cases</button>
+                            <button type="button" class="btn btn-outline-primary" id="filter-queue-pending" onclick="filterInspectorQueue('PENDING')">Pending Reviews</button>
+                            <button type="button" class="btn btn-outline-primary" id="filter-queue-reports" onclick="filterInspectorQueue('REPORTS')">Consumer Reports</button>
+                            <button type="button" class="btn btn-outline-primary" id="filter-queue-history" onclick="filterInspectorQueue('HISTORY')">Inspection History</button>
+                        </div>
+                        <div class="input-group input-group-sm" style="max-width: 260px;">
+                            <span class="input-group-text bg-white"><i class="bi bi-search"></i></span>
+                            <input type="text" id="inspector-search-input" class="form-control" placeholder="Search case or product..." onkeyup="searchInspectorQueue()">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Queue List Grid -->
+                <div id="inspector-queue-list" class="row g-3">
+                    <!-- Dynamic -->
+                </div>
+            </div>
+
+            <!-- 13. INSPECTOR VERIFY WORKSPACE -->
+            <div id="view-inspector-verify" class="app-view hidden">
+                <div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
+                    <div>
+                        <span class="badge bg-warning text-dark px-3 py-1 mb-1"><i class="bi bi-shield-exclamation me-1"></i> Verification Active — Case #<span id="workspace-case-id">CR-2024-10245</span></span>
+                        <h4 class="fw-bold mb-0">Inspector Evidence Audit Workspace</h4>
+                    </div>
+                    <button class="btn btn-sm btn-outline-secondary rounded-pill px-3" onclick="showView('inspector')">
+                        <i class="bi bi-arrow-left me-1"></i> Back to Inspector Queue
+                    </button>
+                </div>
+
+                <div class="row g-4">
+                    <!-- Left: Original Image & Consumer Concern -->
+                    <div class="col-lg-5">
+                        <div class="card-scanshield p-3 text-center mb-3">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <h6 class="fw-bold mb-0"><i class="bi bi-image text-primary me-1"></i>Packaging Label Evidence</h6>
+                                <span class="badge bg-light text-dark border">Side 1 / 6</span>
+                            </div>
+                            <img id="workspace-evidence-img" src="/reference Image/2.png" class="img-fluid rounded border mb-2" style="max-height: 380px; object-fit: contain;">
+                            <span class="badge bg-success-subtle text-success p-2 w-100">
+                                <i class="bi bi-camera-fill me-1"></i> OpenCV Preprocessed & High-Resolution Image
+                            </span>
+                        </div>
+
+                        <div class="card-scanshield p-3 bg-light border" id="workspace-consumer-card">
+                            <h6 class="fw-bold text-navy mb-2"><i class="bi bi-chat-left-text me-1 text-danger"></i>Consumer Concern Note</h6>
+                            <p id="workspace-consumer-comment" class="small text-muted mb-0">"The consumer care phone number appears to be missing or illegible on the packaging label."</p>
+                        </div>
+                    </div>
+
+                    <!-- Right: Extracted Declarations, Rule Engine Matrix & Remarks -->
+                    <div class="col-lg-7">
+                        <div class="card-scanshield p-4 mb-4">
+                            <h6 class="fw-bold text-primary mb-3"><i class="bi bi-table me-2"></i>A. Extracted Declarations Verification Table</h6>
+                            
+                            <div class="table-responsive mb-4">
+                                <table class="table table-bordered table-hover align-middle small">
+                                    <thead class="table-dark">
+                                        <tr>
+                                            <th>Field</th>
+                                            <th>Extracted Value</th>
+                                            <th>OCR Quality</th>
+                                            <th>Inspector Verification</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="workspace-extracted-table">
+                                        <!-- Dynamic -->
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            <h6 class="fw-bold text-primary mb-3"><i class="bi bi-shield-check me-2"></i>B. Rule Engine Audit Matrix</h6>
+                            <div class="list-group mb-4" id="workspace-rule-matrix-list">
+                                <!-- Dynamic Rule Matrix -->
+                            </div>
+
+                            <!-- Inspector Remarks -->
+                            <div class="mb-4">
+                                <label class="form-label fw-bold small text-navy"><i class="bi bi-pencil-square me-1"></i>C. Official Inspector Verification Remarks</label>
+                                <textarea id="inspector-remarks-text" class="form-control" rows="3">Verified label image against Legal Metrology Rules, 2011 provisions. All mandatory declarations confirmed.</textarea>
+                            </div>
+
+                            <!-- 3-Way Final Inspection Decision Buttons -->
+                            <h6 class="fw-bold text-navy mb-2"><i class="bi bi-check2-square me-1"></i>D. Final Official Decision</h6>
+                            <div class="row g-2">
+                                <div class="col-md-4">
+                                    <button class="btn btn-success w-100 py-3 fw-bold" onclick="submitInspectorDecision('PASS')">
+                                        <i class="bi bi-check-circle-fill me-1"></i> PASS (Compliant)
+                                    </button>
+                                </div>
+                                <div class="col-md-4">
+                                    <button class="btn btn-danger w-100 py-3 fw-bold" onclick="submitInspectorDecision('FAIL')">
+                                        <i class="bi bi-x-circle-fill me-1"></i> FAIL (Non-Compliant)
+                                    </button>
+                                </div>
+                                <div class="col-md-4">
+                                    <button class="btn btn-warning text-dark w-100 py-3 fw-bold" onclick="submitInspectorDecision('NEEDS_REVIEW')">
+                                        <i class="bi bi-exclamation-triangle-fill me-1"></i> Needs Review
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 14. ADMIN ECOSYSTEM MANAGEMENT VIEW -->
+            <div id="view-admin" class="app-view hidden">
+                <!-- Platform Overall Analytics -->
+                <div class="row g-3 mb-4">
+                    <div class="col-6 col-md-2">
+                        <div class="card-scanshield p-3 text-center h-100">
+                            <span class="small text-muted fw-bold d-block mb-1">Total Scans</span>
+                            <h4 class="fw-bold text-primary mb-0">12,450</h4>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-2">
+                        <div class="card-scanshield p-3 text-center h-100">
+                            <span class="small text-muted fw-bold d-block mb-1">Consumer Reports</span>
+                            <h4 class="fw-bold text-warning mb-0">842</h4>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-2">
+                        <div class="card-scanshield p-3 text-center h-100">
+                            <span class="small text-muted fw-bold d-block mb-1">Inspections</span>
+                            <h4 class="fw-bold text-info mb-0">615</h4>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-2">
+                        <div class="card-scanshield p-3 text-center h-100">
+                            <span class="small text-muted fw-bold d-block mb-1">Compliant</span>
+                            <h4 class="fw-bold text-success mb-0">421</h4>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-2">
+                        <div class="card-scanshield p-3 text-center h-100">
+                            <span class="small text-muted fw-bold d-block mb-1">Non-Compliant</span>
+                            <h4 class="fw-bold text-danger mb-0">143</h4>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-2">
+                        <div class="card-scanshield p-3 text-center h-100">
+                            <span class="small text-muted fw-bold d-block mb-1">Needs Review</span>
+                            <h4 class="fw-bold text-secondary mb-0">51</h4>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Admin Navigation Tabs -->
+                <ul class="nav nav-tabs mb-4" id="adminTab" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active fw-bold" id="admin-rules-tab" data-bs-toggle="tab" data-bs-target="#admin-tab-rules" type="button" role="tab">
+                            <i class="bi bi-journal-check me-1"></i> Legal Metrology Rule Repository & Versioning
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link fw-bold" id="admin-users-tab" data-bs-toggle="tab" data-bs-target="#admin-tab-users" type="button" role="tab">
+                            <i class="bi bi-people me-1"></i> User Accounts & Inspector RBAC
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link fw-bold" id="admin-audit-tab" data-bs-toggle="tab" data-bs-target="#admin-tab-audit" type="button" role="tab">
+                            <i class="bi bi-clock-history me-1"></i> System Activity & Audit Log
+                        </button>
+                    </li>
+                </ul>
+
+                <div class="tab-content" id="adminTabContent">
+                    <!-- Rules Repository & Version Management Tab -->
+                    <div class="tab-pane fade show active" id="admin-tab-rules" role="tabpanel">
+                        <div class="card-scanshield p-4">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <h6 class="fw-bold text-navy mb-0"><i class="bi bi-shield-gear me-2"></i>Legal Metrology Rule Engine Configuration</h6>
+                                <button class="btn btn-sm btn-primary rounded-pill px-3" onclick="openAddRuleModal()">
+                                    <i class="bi bi-plus-circle me-1"></i> Add / Version New Rule
+                                </button>
+                            </div>
+
+                            <div class="table-responsive">
+                                <table class="table table-hover align-middle small">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th>Rule ID</th>
+                                            <th>Rule Provision</th>
+                                            <th>Category</th>
+                                            <th>Severity</th>
+                                            <th>Version</th>
+                                            <th>Status</th>
+                                            <th>Action</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="admin-rules-table">
+                                        <!-- Dynamic Rules -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- User Management & Inspector Creation Tab -->
+                    <div class="tab-pane fade" id="admin-tab-users" role="tabpanel">
+                        <div class="card-scanshield p-4">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <h6 class="fw-bold text-navy mb-0"><i class="bi bi-people-fill me-2"></i>Registered Platform Users & Role Controls</h6>
+                                <button class="btn btn-sm btn-success rounded-pill px-3" onclick="openAddInspectorModal()">
+                                    <i class="bi bi-person-plus-fill me-1"></i> Create Inspector Account
+                                </button>
+                            </div>
+
+                            <div class="table-responsive">
+                                <table class="table table-hover align-middle small">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th>User ID</th>
+                                            <th>Full Name</th>
+                                            <th>Email</th>
+                                            <th>Role</th>
+                                            <th>Inspector Badge</th>
+                                            <th>Account Status</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="admin-users-table">
+                                        <!-- Dynamic Users -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- System Activity & Audit Log Tab -->
+                    <div class="tab-pane fade" id="admin-tab-audit" role="tabpanel">
+                        <div class="card-scanshield p-4">
+                            <h6 class="fw-bold text-navy mb-3"><i class="bi bi-list-stars me-2"></i>System-Wide Operations & Audit Trail</h6>
+                            <div class="table-responsive">
+                                <table class="table table-sm table-striped small">
+                                    <thead>
+                                        <tr>
+                                            <th>Timestamp</th>
+                                            <th>User / Actor</th>
+                                            <th>Action Performed</th>
+                                            <th>Entity Affected</th>
+                                            <th>Trace ID</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="admin-audit-log-table">
+                                        <!-- Dynamic Audit Trail -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </main>
+
+        <!-- Bottom Navigation Bar for Mobile Devices -->
+        <nav class="app-bottom-nav">
+            <button class="nav-item-btn active" data-target="home">
+                <i class="bi bi-house-door-fill"></i>
+                <span>Home</span>
+            </button>
+            <button class="nav-item-btn" data-target="scan">
+                <i class="bi bi-qr-code-scan"></i>
+                <span>Scan</span>
+            </button>
+            <button class="nav-item-btn" data-target="my-reports">
+                <i class="bi bi-file-text-fill"></i>
+                <span>Reports</span>
+            </button>
+            <button class="nav-item-btn" data-target="learn">
+                <i class="bi bi-journal-bookmark-fill"></i>
+                <span>Learn</span>
+            </button>
+            <button class="nav-item-btn d-none" id="bottom-nav-inspector" data-target="inspector">
+                <i class="bi bi-person-badge-fill"></i>
+                <span>Inspector</span>
+            </button>
+        </nav>
+
+    </div>
+
+    <!-- Authentication Modal (Login / Sign Up) -->
+    <div class="modal fade" id="authModal" tabindex="-1" aria-labelledby="authModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content rounded-4 border-0 shadow">
+                <div class="modal-header border-0 pb-0">
+                    <ul class="nav nav-pills w-100" id="authTab" role="tablist">
+                        <li class="nav-item flex-fill text-center" role="presentation">
+                            <button class="nav-link active w-100 fw-bold" id="login-tab" data-bs-toggle="pill" data-bs-target="#tab-login" type="button" role="tab">
+                                <i class="bi bi-box-arrow-in-right me-1"></i> Sign In
+                            </button>
+                        </li>
+                        <li class="nav-item flex-fill text-center" role="presentation">
+                            <button class="nav-link w-100 fw-bold" id="register-tab" data-bs-toggle="pill" data-bs-target="#tab-register" type="button" role="tab">
+                                <i class="bi bi-person-plus me-1"></i> Create Account
+                            </button>
+                        </li>
+                    </ul>
+                    <button type="button" class="btn-close ms-2" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <!-- Quick Role Selection Demo Shortcuts -->
+                    <div class="mb-3 p-2 bg-light rounded border">
+                        <div class="text-muted extra-small mb-1 fw-bold text-uppercase"><i class="bi bi-lightning-charge-fill text-warning me-1"></i> Quick Demo Login Fill:</div>
+                        <div class="d-flex flex-wrap gap-1">
+                            <button type="button" class="btn btn-xs btn-outline-primary py-1 px-2" onclick="quickFillAuth('consumer@scanshield.gov.in', 'consumer123')"><i class="bi bi-person me-1"></i>Consumer</button>
+                            <button type="button" class="btn btn-xs btn-outline-warning text-dark py-1 px-2" onclick="quickFillAuth('inspector@scanshield.gov.in', 'inspector123')"><i class="bi bi-person-badge me-1"></i>Inspector</button>
+                            <button type="button" class="btn btn-xs btn-outline-danger py-1 px-2" onclick="quickFillAuth('admin@scanshield.gov.in', 'admin123')"><i class="bi bi-shield-lock me-1"></i>Admin</button>
+                        </div>
+                    </div>
+
+                    <div class="tab-content" id="authTabContent">
+                        <!-- LOGIN FORM -->
+                        <div class="tab-pane fade show active" id="tab-login" role="tabpanel">
+                            <form id="form-login" onsubmit="handleLogin(event)">
+                                <div class="mb-3">
+                                    <label class="form-label small fw-bold">Email Address</label>
+                                    <input type="email" id="login-email" class="form-control" placeholder="name@scanshield.gov.in" required>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label small fw-bold">Password</label>
+                                    <input type="password" id="login-password" class="form-control" placeholder="••••••••" required>
+                                </div>
+                                <div id="login-error" class="alert alert-danger py-2 small d-none"></div>
+                                <button type="submit" class="btn btn-primary w-100 py-2 fw-bold rounded-3">
+                                    <i class="bi bi-shield-lock-fill me-1"></i> Sign In to ScanShield
+                                </button>
+                            </form>
+                        </div>
+
+                        <!-- REGISTER FORM -->
+                        <div class="tab-pane fade" id="tab-register" role="tabpanel">
+                            <form id="form-register" onsubmit="handleRegister(event)">
+                                <div class="mb-2">
+                                    <label class="form-label small fw-bold">Full Name</label>
+                                    <input type="text" id="reg-name" class="form-control" placeholder="e.g. Inspector Rajesh Sharma" required>
+                                </div>
+                                <div class="mb-2">
+                                    <label class="form-label small fw-bold">Email Address</label>
+                                    <input type="email" id="reg-email" class="form-control" placeholder="user@scanshield.gov.in" required>
+                                </div>
+                                <div class="mb-2">
+                                    <label class="form-label small fw-bold">Password</label>
+                                    <input type="password" id="reg-password" class="form-control" placeholder="At least 6 characters" required>
+                                </div>
+                                <div class="row g-2 mb-2">
+                                    <div class="col-6">
+                                        <label class="form-label small fw-bold">Account Role</label>
+                                        <select id="reg-role" class="form-select" onchange="toggleBadgeField()">
+                                            <option value="CONSUMER">Consumer</option>
+                                            <option value="INSPECTOR">Inspector</option>
+                                            <option value="ADMIN">Admin</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-6" id="badge-field-col" style="display: none;">
+                                        <label class="form-label small fw-bold">Badge Number</label>
+                                        <input type="text" id="reg-badge" class="form-control" placeholder="LM-INSP-2026">
+                                    </div>
+                                </div>
+                                <div id="reg-error" class="alert alert-danger py-2 small d-none"></div>
+                                <button type="submit" class="btn btn-success w-100 py-2 fw-bold rounded-3">
+                                    <i class="bi bi-person-check-fill me-1"></i> Register Account
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap 5 JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- Custom Application JS -->
+    <script src="/static/js/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,22 @@
+version: '3.8'
+
+services:
+  scanshield:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: scanshield-app
+    restart: always
+    ports:
+      - "8000:8000"
+    environment:
+      - ENVIRONMENT=production
+      - DEBUG=false
+      - PORT=8000
+    volumes:
+      - scanshield-storage:/app/backend/storage
+      - scanshield-db:/app/backend/scanshield.db
+
+volumes:
+  scanshield-storage:
+  scanshield-db:

@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: scanshield-platform
+    env: docker
+    dockerfilePath: Dockerfile
+    plan: free
+    region: singapore
+    autoDeploy: true
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: DEBUG
+        value: "false"
+      - key: JWT_SECRET
+        generateValue: true

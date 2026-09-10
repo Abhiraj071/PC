@@ -1,0 +1,24 @@
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+.venv
+.pytest_cache/
+*.log
+
+# Environment variables
+.env
+
+# Storage uploads (transient runtime files)
+backend/storage/uploads/*
+!backend/storage/uploads/.gitkeep
+backend/storage/preprocessed/*
+!backend/storage/preprocessed/.gitkeep
+
+# Operating system
+.DS_Store
+Thumbs.db
