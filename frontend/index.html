@@ -304,8 +304,19 @@
                         <h6 class="fw-bold mb-0"><i class="bi bi-images me-2 text-primary"></i>All 6 Captured Sides</h6>
                         <span class="badge bg-success px-3 py-2"><i class="bi bi-check-circle-fill me-1"></i> <span id="preview-captured-count">0</span>/6 Captured</span>
                     </div>
-                    <div class="row g-2" id="preview-6-grid">
-                        <!-- Dynamically populated by JS -->
+                    <!-- Swipeable Carousel for all 6 captured sides -->
+                    <div id="preview-6-carousel" class="carousel slide mb-3" data-bs-touch="true" data-bs-interval="false">
+                        <div class="carousel-inner rounded-3 overflow-hidden shadow" id="preview-6-grid">
+                            <!-- Dynamically populated by JS -->
+                        </div>
+                        <button class="carousel-control-prev" type="button" data-bs-target="#preview-6-carousel" data-bs-slide="prev" style="width:40px;">
+                            <span class="carousel-control-prev-icon" aria-hidden="true"></span>
+                        </button>
+                        <button class="carousel-control-next" type="button" data-bs-target="#preview-6-carousel" data-bs-slide="next" style="width:40px;">
+                            <span class="carousel-control-next-icon" aria-hidden="true"></span>
+                        </button>
+                        <!-- Indicator dots -->
+                        <div class="carousel-indicators mt-2" id="preview-carousel-indicators" style="position:relative; bottom:unset;"></div>
                     </div>
                 </div>
 
@@ -330,7 +341,7 @@
 
                 <!-- Hidden anchor img for legacy src reference -->
                 <img id="preview-img-target" src="" alt="" style="display:none;">
-            </div></div>
+            </div>
 
             <!-- 4. ANALYZING VIEW -->
             <div id="view-analyzing" class="app-view hidden text-center py-4">

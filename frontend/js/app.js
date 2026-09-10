@@ -900,33 +900,43 @@ function triggerSimulatedScan() {
 
 function renderPreviewGrid() {
     const grid = document.getElementById('preview-6-grid');
+    const indicators = document.getElementById('preview-carousel-indicators');
     const countEl = document.getElementById('preview-captured-count');
     if (!grid) return;
 
-    let count = 0;
-    grid.innerHTML = PACKAGING_SIDES.map(s => {
+    const capturedSides = PACKAGING_SIDES.filter(s => appState.capturedSides[s.key] && appState.capturedSides[s.key].dataUrl);
+    const count = capturedSides.length;
+    if (countEl) countEl.textContent = count;
+
+    // Build carousel slides (all 6, but only captured ones get real images)
+    grid.innerHTML = PACKAGING_SIDES.map((s, idx) => {
         const data = appState.capturedSides[s.key];
         const captured = data && data.dataUrl;
-        if (captured) count++;
-
+        const isFirst = idx === 0;
         return `
-            <div class="col-4">
-                <div class="card border-0 shadow-sm rounded-3 overflow-hidden h-100">
+            <div class="carousel-item ${isFirst ? 'active' : ''}">
+                <div style="background:#111; position:relative;">
                     ${captured
-                        ? `<img src="${data.dataUrl}" class="w-100" style="height:110px; object-fit:cover; background:#000;" alt="${s.label}">`
-                        : `<div class="d-flex align-items-center justify-content-center bg-light" style="height:110px;">
-                               <i class="bi ${s.icon} fs-2 text-muted"></i>
+                        ? `<img src="${data.dataUrl}" class="d-block w-100" style="max-height:300px; object-fit:contain; background:#000;" alt="${s.label}">`
+                        : `<div class="d-flex align-items-center justify-content-center" style="height:200px; background:#1e293b;">
+                               <div class="text-center text-white-50">
+                                   <i class="bi ${s.icon} display-3 mb-2 d-block"></i>
+                                   <span class="fw-bold">${s.label}</span><br>
+                                   <small>Not captured</small>
+                               </div>
                            </div>`
                     }
-                    <div class="p-1 text-center" style="background:${captured ? '#f0fdf4' : '#f8f9fa'};">
-                        <span class="badge ${captured ? 'bg-success' : 'bg-secondary'} w-100 mb-1" style="font-size:10px;">
-                            ${captured ? `<i class="bi bi-check-lg me-1"></i>${s.label}` : `<i class="bi bi-x me-1"></i>${s.label}`}
+                    <!-- Label + retake overlay at bottom -->
+                    <div class="d-flex align-items-center justify-content-between px-3 py-2" style="background:rgba(0,0,0,0.6);">
+                        <span class="badge ${captured ? 'bg-success' : 'bg-secondary'} px-3 py-2" style="font-size:12px;">
+                            <i class="bi bi-${captured ? 'check-circle-fill' : 'x-circle'} me-1"></i>
+                            ${idx + 1}/6 &nbsp;${s.label}
                         </span>
                         ${captured
-                            ? `<button class="btn btn-xs btn-outline-danger w-100 py-0" style="font-size:10px;" onclick="retakeFromPreview('${s.key}')">
+                            ? `<button class="btn btn-sm btn-outline-light rounded-pill px-3" style="font-size:11px;" onclick="retakeFromPreview('${s.key}')">
                                    <i class="bi bi-arrow-counterclockwise me-1"></i>Retake
                                </button>`
-                            : `<span class="extra-small text-muted d-block" style="font-size:10px;">Not captured</span>`
+                            : ''
                         }
                     </div>
                 </div>
@@ -934,7 +944,15 @@ function renderPreviewGrid() {
         `;
     }).join('');
 
-    if (countEl) countEl.textContent = count;
+    // Build indicator dots
+    if (indicators) {
+        indicators.innerHTML = PACKAGING_SIDES.map((s, idx) => {
+            const captured = appState.capturedSides[s.key] && appState.capturedSides[s.key].dataUrl;
+            return `<button type="button" data-bs-target="#preview-6-carousel" data-bs-slide-to="${idx}"
+                class="${idx === 0 ? 'active' : ''}" aria-label="${s.label}"
+                style="background:${captured ? '#22c55e' : '#94a3b8'}; width:10px; height:10px; border-radius:50%; border:none; margin:0 3px;"></button>`;
+        }).join('');
+    }
 }
 
 function retakeFromPreview(sideKey) {
@@ -1048,6 +1066,10 @@ function startAnalysisPipeline() {
 
         setTimeout(() => {
             showView('product');
+            // Auto-run compliance check with the extracted data immediately
+            if (appState.currentScan && appState.currentScan.scan_id) {
+                triggerRuleEngineExecution();
+            }
         }, 500);
     })
     .catch(err => {
@@ -1068,17 +1090,17 @@ function startAnalysisPipeline() {
 
 // Populate Editable Product Form with Real Extracted Data
 function populateProductForm(data) {
-    const ext = data || getFallbackStructuredData();
-
-    document.getElementById('input-brand-name').value = ext.brand_name || "Lay's";
-    document.getElementById('input-product-name').value = ext.product_name || "Classic Potato Chips";
-    document.getElementById('input-mrp').value = ext.mrp || "₹ 20.00 (Inclusive of all taxes)";
-    document.getElementById('input-net-qty').value = ext.net_quantity || "52 g";
-    document.getElementById('input-mfg-date').value = ext.manufacture_date || "15 Jun 2024";
-    document.getElementById('input-exp-date').value = ext.best_before || "14 Dec 2024";
-    document.getElementById('input-manufacturer').value = ext.manufacturer || "PepsiCo India Holdings Pvt. Ltd.";
-    document.getElementById('input-consumer-care').value = ext.consumer_care || "1800 22 4020, consumercare@pepsico.com";
-    document.getElementById('input-fssai').value = ext.fssai_license || "10014063000346";
+    const ext = data || {};
+    // Show actual OCR extracted value or empty — no fake fallback data
+    document.getElementById('input-brand-name').value = ext.brand_name || '';
+    document.getElementById('input-product-name').value = ext.product_name || '';
+    document.getElementById('input-mrp').value = ext.mrp || '';
+    document.getElementById('input-net-qty').value = ext.net_quantity || '';
+    document.getElementById('input-mfg-date').value = ext.manufacture_date || '';
+    document.getElementById('input-exp-date').value = ext.best_before || '';
+    document.getElementById('input-manufacturer').value = ext.manufacturer || '';
+    document.getElementById('input-consumer-care').value = ext.consumer_care || '';
+    document.getElementById('input-fssai').value = ext.fssai_license || '';
 }
 
 // Trigger Legal Metrology Rule Engine Execution
