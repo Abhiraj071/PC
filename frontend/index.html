@@ -298,32 +298,39 @@
                     <span class="badge bg-light text-primary border px-3 py-2">Step 3/6 — Image Preview</span>
                     <button class="btn btn-sm btn-outline-secondary" onclick="showView('scan')">Retake Image</button>
                 </div>
-                
-                <div class="row g-4 align-items-center">
-                    <div class="col-md-6">
-                        <div class="card-scanshield p-2 text-center">
-                            <img id="preview-img-target" src="" alt="Captured Product Label" class="img-fluid rounded-3" style="max-height: 420px; object-fit: contain; min-height: 200px; background: #f1f5f9;">
-                        </div>
+                           <!-- 6-Side Captured Images Grid -->
+                <div class="mb-4">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h6 class="fw-bold mb-0"><i class="bi bi-images me-2 text-primary"></i>All 6 Captured Sides</h6>
+                        <span class="badge bg-success px-3 py-2"><i class="bi bi-check-circle-fill me-1"></i> <span id="preview-captured-count">0</span>/6 Captured</span>
                     </div>
-                    <div class="col-md-6">
-                        <div class="alert alert-success d-flex align-items-center p-3 mb-3 rounded-3">
-                            <i class="bi bi-check-circle-fill fs-3 text-success me-3"></i>
-                            <div>
-                                <h6 class="fw-bold mb-1">Image Quality Check Passed</h6>
-                                <p class="small text-muted mb-0">OpenCV Laplacian variance blur check confirmed image is clear and readable for Tesseract OCR.</p>
-                            </div>
-                        </div>
-                        <div class="d-flex flex-column gap-3">
-                            <button class="btn-scanshield-primary py-3" onclick="startAnalysisPipeline()">
-                                Run Tesseract OCR & AI Extraction <i class="bi bi-arrow-right ms-2"></i>
-                            </button>
-                            <button class="btn-scanshield-outline py-3" onclick="showView('scan')">
-                                <i class="bi bi-arrow-counterclockwise"></i> Upload Different Image
-                            </button>
-                        </div>
+                    <div class="row g-2" id="preview-6-grid">
+                        <!-- Dynamically populated by JS -->
                     </div>
                 </div>
-            </div>
+
+                <!-- Quality Check Alert -->
+                <div class="alert alert-success d-flex align-items-center p-3 mb-3 rounded-3">
+                    <i class="bi bi-check-circle-fill fs-4 text-success me-3"></i>
+                    <div>
+                        <h6 class="fw-bold mb-1">Images Ready for Analysis</h6>
+                        <p class="small text-muted mb-0">All captured sides will be processed with Tesseract OCR &amp; AI extraction.</p>
+                    </div>
+                </div>
+
+                <!-- Action Buttons -->
+                <div class="d-flex flex-column gap-3">
+                    <button class="btn-scanshield-primary py-3" onclick="startAnalysisPipeline()">
+                        <i class="bi bi-cpu-fill me-2"></i> Run Tesseract OCR &amp; AI Extraction <i class="bi bi-arrow-right ms-2"></i>
+                    </button>
+                    <button class="btn-scanshield-outline py-3" onclick="showView('scan')">
+                        <i class="bi bi-arrow-counterclockwise me-1"></i> Retake / Add More Photos
+                    </button>
+                </div>
+
+                <!-- Hidden anchor img for legacy src reference -->
+                <img id="preview-img-target" src="" alt="" style="display:none;">
+            </div></div>
 
             <!-- 4. ANALYZING VIEW -->
             <div id="view-analyzing" class="app-view hidden text-center py-4">

@@ -898,6 +898,54 @@ function triggerSimulatedScan() {
     startLiveCamera();
 }
 
+function renderPreviewGrid() {
+    const grid = document.getElementById('preview-6-grid');
+    const countEl = document.getElementById('preview-captured-count');
+    if (!grid) return;
+
+    let count = 0;
+    grid.innerHTML = PACKAGING_SIDES.map(s => {
+        const data = appState.capturedSides[s.key];
+        const captured = data && data.dataUrl;
+        if (captured) count++;
+
+        return `
+            <div class="col-4">
+                <div class="card border-0 shadow-sm rounded-3 overflow-hidden h-100">
+                    ${captured
+                        ? `<img src="${data.dataUrl}" class="w-100" style="height:110px; object-fit:cover; background:#000;" alt="${s.label}">`
+                        : `<div class="d-flex align-items-center justify-content-center bg-light" style="height:110px;">
+                               <i class="bi ${s.icon} fs-2 text-muted"></i>
+                           </div>`
+                    }
+                    <div class="p-1 text-center" style="background:${captured ? '#f0fdf4' : '#f8f9fa'};">
+                        <span class="badge ${captured ? 'bg-success' : 'bg-secondary'} w-100 mb-1" style="font-size:10px;">
+                            ${captured ? `<i class="bi bi-check-lg me-1"></i>${s.label}` : `<i class="bi bi-x me-1"></i>${s.label}`}
+                        </span>
+                        ${captured
+                            ? `<button class="btn btn-xs btn-outline-danger w-100 py-0" style="font-size:10px;" onclick="retakeFromPreview('${s.key}')">
+                                   <i class="bi bi-arrow-counterclockwise me-1"></i>Retake
+                               </button>`
+                            : `<span class="extra-small text-muted d-block" style="font-size:10px;">Not captured</span>`
+                        }
+                    </div>
+                </div>
+            </div>
+        `;
+    }).join('');
+
+    if (countEl) countEl.textContent = count;
+}
+
+function retakeFromPreview(sideKey) {
+    if (sideKey && appState.capturedSides[sideKey]) {
+        delete appState.capturedSides[sideKey];
+    }
+    appState.activeSide = sideKey;
+    renderSidesUI();
+    showView('scan');
+}
+
 function submitMultiSideScan() {
     let count = 0;
     PACKAGING_SIDES.forEach(s => {
@@ -915,13 +963,16 @@ function submitMultiSideScan() {
     const fileToUpload = frontData ? frontData.file : null;
     appState.capturedImage = frontData ? frontData.dataUrl : null;
 
-    // Always set the preview image src immediately from captured dataUrl
+    // Set hidden legacy preview img
     const preview1 = document.getElementById('preview-img-target');
     const preview2 = document.getElementById('product-label-preview-img');
     if (appState.capturedImage) {
         if (preview1) preview1.src = appState.capturedImage;
         if (preview2) preview2.src = appState.capturedImage;
     }
+
+    // Render the 6-image preview grid
+    renderPreviewGrid();
 
     if (fileToUpload) {
         uploadScanFile(fileToUpload);
