@@ -160,6 +160,20 @@ function updateAuthUI() {
             }
         }
 
+        // Sync Profile View
+        const profileName = document.getElementById('profile-name');
+        const profileRoleBadge = document.getElementById('profile-role-badge');
+        const profileEmail = document.getElementById('profile-email');
+        const profileAvatar = document.getElementById('profile-avatar');
+
+        if (profileName) profileName.textContent = appState.user.full_name || appState.user.email;
+        if (profileEmail) profileEmail.textContent = appState.user.email;
+        if (profileRoleBadge) {
+            profileRoleBadge.textContent = appState.user.role;
+            profileRoleBadge.className = `badge ${appState.user.role === 'ADMIN' ? 'bg-danger' : (appState.user.role === 'INSPECTOR' ? 'bg-warning text-dark' : 'bg-success')} px-3 py-1`;
+        }
+        if (profileAvatar) profileAvatar.textContent = (appState.user.full_name || appState.user.email).charAt(0).toUpperCase();
+
         // Inspector Portal access
         if (appState.user.role === 'INSPECTOR' || appState.user.role === 'ADMIN') {
             if (navLinkInspector) navLinkInspector.classList.remove('d-none');
@@ -1590,4 +1604,8 @@ function toggleRuleStatus(ruleId) {
         r.status = r.status === 'Active' ? 'Inactive' : 'Active';
         renderAdminRulesTable();
     }
+}
+
+function changeLanguage(lang) {
+    alert(`Preferred language changed to ${lang}. Multilingual Legal Metrology OCR engine configured.`);
 }
