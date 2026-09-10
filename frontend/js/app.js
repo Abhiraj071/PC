@@ -503,40 +503,7 @@ function renderSidesUI() {
         }
     });
 
-    // Render Inline Captured Side Preview Card
-    const previewCard = document.getElementById('captured-side-preview-card');
-    const activeSideData = appState.capturedSides[appState.activeSide];
 
-    if (previewCard) {
-        if (activeSideData && activeSideData.dataUrl) {
-            previewCard.className = 'card-scanshield p-3 mb-3 bg-light border-success shadow-sm';
-            previewCard.innerHTML = `
-                <div class="d-flex align-items-center justify-content-between gap-3">
-                    <div class="d-flex align-items-center gap-3">
-                        <img src="${activeSideData.dataUrl}" class="rounded-3 border shadow-sm" style="width: 72px; height: 72px; object-fit: contain; background: #000;">
-                        <div>
-                            <span class="badge bg-success mb-1"><i class="bi bi-check-circle-fill me-1"></i> ${activeObj.label} Photo Captured</span>
-                            <h6 class="fw-bold text-dark mb-0">${activeObj.title}</h6>
-                            <small class="text-muted" style="font-size: 11px;">Snapped & ready for analysis</small>
-                        </div>
-                    </div>
-                    <div class="d-flex gap-2">
-                        <button type="button" class="btn btn-sm btn-outline-primary rounded-pill px-3" onclick="openCapturedSnapPreviewModal('${appState.activeSide}')">
-                            <i class="bi bi-eye me-1"></i> View
-                        </button>
-                        <button type="button" class="btn btn-sm btn-outline-danger rounded-pill px-3" onclick="retakeActiveSide()">
-                            <i class="bi bi-arrow-counterclockwise me-1"></i> Retake
-                        </button>
-                    </div>
-                </div>
-            `;
-        } else {
-            previewCard.className = 'd-none';
-            previewCard.innerHTML = '';
-        }
-    }
-
-    // 6-Thumbnail Grid Deck
     const grid = document.getElementById('captured-thumbnails-grid');
     if (grid) {
         grid.innerHTML = PACKAGING_SIDES.map(s => {
@@ -944,14 +911,17 @@ function submitMultiSideScan() {
 
     stopLiveCamera();
 
-    const frontData = appState.capturedSides.front || appState.capturedSides[Object.keys(appState.capturedSides)[0]];
+    const frontData = appState.capturedSides.front || appState.capturedSides[Object.keys(appState.capturedSides).find(k => appState.capturedSides[k])];
     const fileToUpload = frontData ? frontData.file : null;
-    appState.capturedImage = frontData ? frontData.dataUrl : "/reference Image/2.png";
+    appState.capturedImage = frontData ? frontData.dataUrl : null;
 
+    // Always set the preview image src immediately from captured dataUrl
     const preview1 = document.getElementById('preview-img-target');
     const preview2 = document.getElementById('product-label-preview-img');
-    if (preview1) preview1.src = appState.capturedImage;
-    if (preview2) preview2.src = appState.capturedImage;
+    if (appState.capturedImage) {
+        if (preview1) preview1.src = appState.capturedImage;
+        if (preview2) preview2.src = appState.capturedImage;
+    }
 
     if (fileToUpload) {
         uploadScanFile(fileToUpload);
