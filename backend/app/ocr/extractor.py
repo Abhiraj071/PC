@@ -5,9 +5,12 @@ from PIL import Image, ImageOps
 from app.config import settings
 from app.image_processing.preprocessor import check_image_quality
 
+import shutil
 # Configure Tesseract cmd path from settings or common Windows/Linux locations
+which_tesseract = shutil.which("tesseract")
 TESSERACT_CANDIDATES = [
     getattr(settings, "TESSERACT_CMD", ""),
+    which_tesseract,
     r"C:\Program Files\Tesseract-OCR\tesseract.exe",
     r"C:\Program Files (x86)\Tesseract-OCR\tesseract.exe",
     r"C:\Users\Hi-Rich\AppData\Local\Programs\Tesseract-OCR\tesseract.exe",

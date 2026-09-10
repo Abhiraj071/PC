@@ -3,6 +3,7 @@ from pydantic import ConfigDict
 from pydantic_settings import BaseSettings
 
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+DEFAULT_DB_FILE = os.path.abspath(os.path.join(PROJECT_ROOT, "scanshield.db")).replace("\\", "/")
 
 class Settings(BaseSettings):
     APP_NAME: str = "ScanShield"
@@ -15,7 +16,7 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 1440
     
-    DATABASE_URL: str = f"sqlite:///{os.path.join(PROJECT_ROOT, 'scanshield.db').replace('\\', '/')}"
+    DATABASE_URL: str = f"sqlite:///{DEFAULT_DB_FILE}"
     
     UPLOAD_DIR: str = os.path.join(PROJECT_ROOT, "storage", "uploads")
     PREPROCESSED_DIR: str = os.path.join(PROJECT_ROOT, "storage", "preprocessed")
