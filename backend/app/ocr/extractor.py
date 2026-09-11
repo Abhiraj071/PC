@@ -113,13 +113,35 @@ class OCRExtractor:
                     thresh = cv2.adaptiveThreshold(blurred, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY_INV, 15, 4)
                     contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
                     
-                    if contours:
-                        valid_cnts = [c for c in contours if cv2.contourArea(c) > 0.01 * (cw * ch)]
-                        if valid_cnts:
-                            max_c = max(valid_cnts, key=cv2.contourArea)
-                            bx, by, bw, bh = cv2.boundingRect(max_c)
-                            p1x, p1y = max(0, bx - 10), max(0, by - 10)
-                            p2x, p2y = min(cw, bx + bw + 10), min(ch, by + bh + 10)
+                    raw_boxes = []
+                    for cnt in contours:
+                        bx, by, bw, bh = cv2.boundingRect(cnt)
+                        if 0.01 * (cw * ch) < bw * bh < 0.88 * (cw * ch) and bw > 35 and bh > 35:
+                            raw_boxes.append([bx, by, bx + bw, by + bh])
+
+                    if raw_boxes:
+                        merged_boxes = []
+                        for b in sorted(raw_boxes, key=lambda x: (x[2]-x[0])*(x[3]-x[1]), reverse=True):
+                            merged = False
+                            for mb in merged_boxes:
+                                y_overlap = max(0, min(b[3], mb[3]) - max(b[1], mb[1]))
+                                x_dist = max(0, max(b[0], mb[0]) - min(b[2], mb[2]))
+                                x_overlap = max(0, min(b[2], mb[2]) - max(b[0], mb[0]))
+                                y_dist = max(0, max(b[1], mb[1]) - min(b[3], mb[3]))
+                                if (y_overlap > 25 and x_dist < 100) or (x_overlap > 25 and y_dist < 100):
+                                    mb[0] = min(mb[0], b[0])
+                                    mb[1] = min(mb[1], b[1])
+                                    mb[2] = max(mb[2], b[2])
+                                    mb[3] = max(mb[3], b[3])
+                                    merged = True
+                                    break
+                            if not merged:
+                                merged_boxes.append(b)
+
+                        if merged_boxes:
+                            mb = merged_boxes[0]
+                            p1x, p1y = max(0, mb[0] - 12), max(0, mb[1] - 12)
+                            p2x, p2y = min(cw, mb[2] + 12), min(ch, mb[3] + 12)
                             crop_pil = Image.fromarray(cv_img[p1y:p2y, p1x:p2x])
                 except Exception:
                     pass
@@ -127,8 +149,17 @@ class OCRExtractor:
                 cand = crop_pil if crop_pil is not None else pil_img
 
                 aspect = float(cand.width) / float(cand.height)
+                min_d = min(cand.width, cand.height)
+                target_dim = 280.0 if (aspect > 1.8 or aspect < 0.55) else 700.0
+
+                if min_d < target_dim:
+                    factor = target_dim / min_d
+                    cand_scaled = cand.resize((int(cand.width * factor), int(cand.height * factor)), Image.Resampling.LANCZOS)
+                else:
+                    cand_scaled = cand
+
                 if aspect > 1.8 or aspect < 0.55:
-                    angles = [90, 270, 0]
+                    angles = [270, 90]
                 else:
                     angles = [0, 90, 270]
 
@@ -147,43 +178,53 @@ class OCRExtractor:
                             collected_lines.append(ls)
 
                 for angle in angles:
-                    rot = cand.rotate(angle, expand=True) if angle != 0 else cand
+                    rot = cand_scaled.rotate(angle, expand=True) if angle != 0 else cand_scaled
+                    rot_cv = np.array(rot)
+                    r_gray = cv2.cvtColor(rot_cv, cv2.COLOR_RGB2GRAY)
+                    clahe = cv2.createCLAHE(clipLimit=2.5, tileGridSize=(8, 8)).apply(r_gray)
                     
                     # 1. PSM 11 on native crop
                     try:
-                        t11 = pytesseract.image_to_string(rot, config='--psm 11')
-                        s11 = score_text_packaging(t11)
-                        record_lines(t11)
-                        if s11 > best_score:
-                            best_score = s11
-                            best_text = t11
+                        t11_raw = pytesseract.image_to_string(rot, config='--psm 11')
+                        s11_raw = score_text_packaging(t11_raw)
+                        record_lines(t11_raw)
+                        if s11_raw > best_score:
+                            best_score = s11_raw
+                            best_text = t11_raw
                     except Exception:
                         pass
 
-                    # 2. If this angle shows packaging content, run PSM 6 and sub-box extraction
-                    if best_score >= 30:
+                    # 2. PSM 11 on CLAHE enhanced (for colored/gradient/dark backgrounds)
+                    try:
+                        t11_cl = pytesseract.image_to_string(clahe, config='--psm 11')
+                        s11_cl = score_text_packaging(t11_cl)
+                        record_lines(t11_cl)
+                        if s11_cl > best_score:
+                            best_score = s11_cl
+                            best_text = t11_cl
+                    except Exception:
+                        pass
+
+                    # 3. If this angle shows packaging content, run PSM 6 and sub-box extraction
+                    if best_score >= 25:
                         try:
-                            t6 = pytesseract.image_to_string(rot, config='--psm 6')
+                            t6 = pytesseract.image_to_string(r_gray, config='--psm 6')
                             record_lines(t6)
                         except Exception:
                             pass
 
                         try:
-                            import cv2
-                            import numpy as np
-                            rot_cv = np.array(rot)
-                            r_gray = cv2.cvtColor(rot_cv, cv2.COLOR_RGB2GRAY)
                             _, w_mask = cv2.threshold(r_gray, 170, 255, cv2.THRESH_BINARY)
                             w_cnts, _ = cv2.findContours(w_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
                             stamp_boxes = []
                             for wc in w_cnts:
                                 wx, wy, ww, wh = cv2.boundingRect(wc)
                                 area = ww * wh
-                                if 350 < area < 35000 and ww > 15 and wh > 12:
+                                if 250 < area < 95000 and ww > 15 and wh > 12:
                                     stamp_boxes.append((area, wx, wy, ww, wh))
                             stamp_boxes.sort(reverse=True)
 
-                            for _, wx, wy, ww, wh in stamp_boxes[:4]:
+                            for _, wx, wy, ww, wh in stamp_boxes[:8]:
                                 sub_r = rot_cv[wy:wy+wh, wx:wx+ww]
                                 sub_sc = max(2.0, 240.0 / min(ww, wh))
                                 sub_up = cv2.resize(sub_r, (0, 0), fx=sub_sc, fy=sub_sc, interpolation=cv2.INTER_LANCZOS4)
@@ -193,9 +234,22 @@ class OCRExtractor:
                         except Exception:
                             pass
 
-                        # If winning orientation already found with high score, stop trying other angles
-                        if best_score >= 50:
+                        # If winning orientation already found with high score, stop trying other angles (unless slender packaging where both 90 and 270 must be sampled)
+                        if best_score >= 80 and not (aspect > 1.8 or aspect < 0.55):
                             break
+
+                # Bottom strip scan on upright 0-degree view for Principal Display Panel Net Weight (Rule 7)
+                try:
+                    sh, sw = cv_img.shape[:2]
+                    bot_crop = cv_img[int(sh * 0.80):sh, 0:sw]
+                    bot_up = cv2.resize(bot_crop, (0, 0), fx=3.0, fy=3.0, interpolation=cv2.INTER_LANCZOS4)
+                    bot_gray = cv2.cvtColor(bot_up, cv2.COLOR_BGR2GRAY)
+                    bot_clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8, 8)).apply(bot_gray)
+                    bot_txt = pytesseract.image_to_string(bot_clahe, config='--psm 11').strip()
+                    if bot_txt:
+                        record_lines(bot_txt)
+                except Exception:
+                    pass
 
                 # Fallback to uncropped full image if crop had insufficient text
                 if best_score < 15:
@@ -218,6 +272,7 @@ class OCRExtractor:
                         bool(re.search(r'(?:1800|1860)', extra)) or
                         bool(re.search(r'\b\d{1,4}\.\d{2}\b', extra)) or
                         '@' in extra or
+                        'leafaura' in extra.lower() or
                         'classmate' in extra.lower()
                     )
                     if enorm not in best_norm_set and is_valuable:
@@ -225,7 +280,7 @@ class OCRExtractor:
                         best_norm_set.add(enorm)
 
                 raw_text = "\n".join(merged_lines)
-                confidence = 0.92 if best_score >= 50 else (0.85 if best_score >= 20 else 0.70)
+                confidence = 0.95 if best_score >= 40 else (0.85 if best_score >= 15 else 0.70)
 
             except Exception as e:
                 print(f"[OCR] pytesseract extraction error on {image_path}: {e}")

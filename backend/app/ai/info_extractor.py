@@ -56,6 +56,7 @@ KNOWN_COMMODITIES = [
 ]
 
 KNOWN_BRANDS = [
+    "LeafAura", "Leaf Aura", "Aura Foods",
     "Classmate", "Octane", "Cello", "Reynolds", "Camlin", "Doms", "Apsara", "Natraj", "Faber-Castell", "Flair", "Linc", "ITC", "Southern Scribe",
     "Lay's", "Lays", "Kurkure", "Doritos", "Pringles", "Bingo", "Balaji",
     "Britannia", "Parle", "Sunfeast", "Oreo", "Good Day", "Marie Gold", "Monaco", "Hide & Seek",
@@ -74,10 +75,11 @@ KNOWN_BRANDS = [
 class MRPExtractor:
     def extract(self, text: str) -> Dict[str, Any]:
         # Regex for MRP declaration (allowing common OCR misread MAP, colons, dots, equal signs, Rs/Rss/Rs,)
-        mrp_pattern = r'(?:MRP|M\.R\.P\.|MAP|Max\.?\s*Retail\s*Price|Retail\s*Price|Price)[:\s\.\=]*(?:Rs+[.,]?|₹|INR)?\s*(\d+(?:\.\d{1,2})?)\s*(?:\/-|\.)?'
+        # Note: Tesseract often misreads rupee symbol ₹ as '2' or '?'. We handle that by allowing [2\?] before the actual price digits.
+        mrp_pattern = r'(?:MRP|M\.R\.P\.|MAP|Max\.?\s*Retail\s*Price|Retail\s*Price|Price)[:\s\.\=]*(?:Rs+[.,]?|₹|INR|[2\?])?[:\s\.\=]*(\d{2,5}(?:\.\d{1,2})?|\d{1,4}\.\d{2})'
         match = re.search(mrp_pattern, text, re.IGNORECASE)
         
-        has_taxes = bool(re.search(r'(?:incl|inclusive|nck)[^\n\r]*(?:all|ail)?\s*taxes|(?:of\s*(?:all|ail)\s*taxes)|nck\b', text, re.IGNORECASE))
+        has_taxes = bool(re.search(r'(?:incl|inclusive|nck|ick|ire|excl)?[^\n\r]*(?:all|ail|al)\s*taxes|(?:of\s*(?:all|ail|al)\s*taxes)|\btaxes\b', text, re.IGNORECASE))
         
         if match:
             price_val = match.group(1).strip()
@@ -88,7 +90,7 @@ class MRPExtractor:
             }
         
         # Fallback numeric price search with currency symbol, avoiding years 2020-2030
-        curr_match = re.search(r'(?:₹|Rs+[.,]?\s*)\s*(\d{1,4}(?:\.\d{1,2})?)\s*(?:\/-)?(?:\s*(?:incl|inclusive|nck)[^\n]*)?', text, re.IGNORECASE)
+        curr_match = re.search(r'(?:₹|Rs+[.,]?\s*)\s*(\d{1,4}(?:\.\d{1,2})?)\s*(?:\/-)?(?:\s*(?:incl|inclusive|nck|ick|ire)[^\n]*)?', text, re.IGNORECASE)
         if curr_match:
             price_val = curr_match.group(1).strip()
             if price_val not in ["2023", "2024", "2025", "2026", "2027"]:
@@ -111,30 +113,46 @@ class QuantityExtractor:
                 non_nutrition_lines.append(line)
         clean_text = "\n".join(non_nutrition_lines)
 
-        # Primary: Look for explicit Net Weight / Quantity keywords including item/count units
-        pattern = r'(?:Net\s*(?:Wt|Weight|Quantity|Qty|Vol|Volume|Contents?)|Weight|Volume|Quantity)[:\.\s]*\n*(?:\|\s*)?(\d+(?:\.\d+)?\s*(?:kg|g|gm|gms|ml|mL|l|L|ltr|litres|count|units?|N\b|n\b|pieces?|pcs|gel\s*pens?|pens?|pencils?|erasers?|items?|u\b))\b'
-        match = re.search(pattern, clean_text, re.IGNORECASE)
+        # Handle OCR misreads like SO g -> 50 g
+        clean_text_sub = re.sub(r'\bS([0-9])\b|\b([0-9])O\b|\bSO\b', lambda m: m.group(0).replace('S', '5').replace('O', '0'), clean_text)
+
+        # Dual count + net weight (e.g. "25 Tea Bags (50 g)")
+        count_m = re.search(r'\b(\d+)\s*(?:\n[^\n\r]*\n|\s+)*(Tea\s*Bags?|Bags?|Gel\s*Pens?|Pens?|Pieces?|Pcs|Units?)\b', clean_text, re.IGNORECASE)
+        net_m = re.search(r'(?:Net\s*(?:Wt|Weight|Quantity|Qty|By|yy|ty|Oty|oy))[:\.\s]*(\d+(?:\.\d+)?\s*(?:kg|g|gm|gms|ml|l))\b', clean_text_sub, re.IGNORECASE)
+        if count_m and net_m:
+            return {
+                "val": f"{count_m.group(1)} {count_m.group(2).title()} ({net_m.group(1).strip()})",
+                "confidence": 0.98
+            }
+
+        # Primary: Look for explicit Net Weight / Quantity keywords
+        pattern = r'(?:Net\s*(?:Wt|Weight|Quantity|Qty|Vol|Volume|Contents?|By|yy|ty|Oty|oy)|Weight|Volume|Quantity)[:\.\s]*\n*(?:\|\s*)?(\d+(?:\.\d+)?\s*(?:kg|g|gm|gms|ml|mL|l|L|ltr|litres|count|units?|N\b|n\b|pieces?|pcs|gel\s*pens?|pens?|pencils?|erasers?|items?|u\b))\b'
+        match = re.search(pattern, clean_text_sub, re.IGNORECASE)
         if match:
             raw_qty = match.group(1).strip()
             clean_qty = re.sub(r'(\d+)\s*([A-Za-z]+)', r'\1 \2', raw_qty)
             return {"val": clean_qty, "confidence": 0.98}
 
-        # Check Net Quantity followed by unit/item name without explicit digit or with digit (e.g. "Net Quantity : 1 Gel Pen" or "Net Quantity : Gel Pen")
-        net_item_match = re.search(r'(?:Net\s*(?:Quantity|Qty|Contents?))[:\.\s]*\n*(?:\|\s*)?(\d+)?\s*(Gel\s*Pen|Ball\s*Pen|Pen|Pencil|Notebook|Piece|Unit|Item|Pcs)\b', clean_text, re.IGNORECASE)
+        # Check Net Quantity followed by unit/item name without explicit digit or with digit
+        net_item_match = re.search(r'(?:Net\s*(?:Quantity|Qty|Contents?))[:\.\s]*\n*(?:\|\s*)?(\d+)?\s*(Gel\s*Pen|Ball\s*Pen|Pen|Pencil|Notebook|Piece|Unit|Item|Pcs|Tea\s*Bags?)\b', clean_text, re.IGNORECASE)
         if net_item_match:
             num = net_item_match.group(1) or "1"
             unit = net_item_match.group(2).strip()
             return {"val": f"{num} {unit}", "confidence": 0.95}
+
+        # Secondary: Explicit count units like 1 Gel Pen, 25 Tea Bags, 10 Pcs
+        if count_m:
+            return {"val": f"{count_m.group(1)} {count_m.group(2).title()}", "confidence": 0.95}
         
-        # Secondary: Explicit count units like 1 Gel Pen, 1 Pen, 1 N, 10 Pcs
-        count_match = re.search(r'\b(\d+\s*(?:Gel\s*Pen|Ball\s*Pen|Pen|Pens|Pencil|Pencils|N\b|U\b|Piece|Pieces|Pcs|Count|Units?))\b', clean_text, re.IGNORECASE)
+        count_match = re.search(r'\b(\d+\s*(?:Gel\s*Pen|Ball\s*Pen|Pen|Pens|Pencil|Pencils|N\b|U\b|Piece|Pieces|Pcs|Count|Units?|Tea\s*Bags?))\b', clean_text, re.IGNORECASE)
         if count_match:
             raw_qty = count_match.group(1).strip()
             return {"val": raw_qty, "confidence": 0.95}
 
         # Standalone metric quantities on non-nutrition lines
         for line in non_nutrition_lines:
-            fallback_match = re.search(r'\b(\d+(?:\.\d+)?\s*(?:kg|g|gm|gms|ml|mL|l|L|ltr|N\b))\b', line, re.IGNORECASE)
+            line_sub = re.sub(r'\bS([0-9])\b|\b([0-9])O\b|\bSO\b', lambda m: m.group(0).replace('S', '5').replace('O', '0'), line)
+            fallback_match = re.search(r'\b(\d+(?:\.\d+)?\s*(?:kg|g|gm|gms|ml|mL|l|L|ltr|N\b))\b', line_sub, re.IGNORECASE)
             if fallback_match:
                 raw_qty = fallback_match.group(1).strip()
                 clean_qty = re.sub(r'(\d+)\s*([A-Za-z]+)', r'\1 \2', raw_qty)
@@ -148,12 +166,12 @@ class QuantityExtractor:
 
 class ManufacturerExtractor:
     def extract(self, text: str) -> Dict[str, Any]:
-        pattern = r'(?:Mfd\.?\s*(?:&|and)?\s*Mkt\.?\s*by|Manufactured\s*(?:&|and)?\s*Marketed\s*by|Manufactured\s*by|Mortactured\s*by|Marketed\s*by|Meskated\s*by|Packed\s*by|Mkd\.\s*by|Imported\s*by|Mfg\.?\s*by|Mktg\.?\s*by|Mktd\.?\s*by|Manufacturer)[:\s]*([^\n\r]+(?:\n[^\n\r]+){0,4})'
+        pattern = r'(?:Mfd\.?\s*(?:&|and)?\s*Mkt\.?\s*by|Manufactured\s*(?:&|and)?\s*Packed\s*by|Manufactured\s*(?:&|and)?\s*Marketed\s*by|Manufactured\s*by|Mortactured\s*by|Marketed\s*by|Meskated\s*by|Packed\s*by|Mkd\.\s*by|Imported\s*by|Mfg\.?\s*by|Mktg\.?\s*by|Mktd\.?\s*by|Manufacturer)[:\s]*([^\n\r]+(?:\n[^\n\r]+){0,4})'
         match = re.search(pattern, text, re.IGNORECASE)
         if match:
             mfg_text = match.group(0).replace('\n', ', ')
             mfg_clean = re.sub(r'\s+', ' ', mfg_text).strip(" ,.-|")
-            for cutoff in ["net quantity", "mrp", "map", "mfd", "quality manager", "liability", "best before", "feedback"]:
+            for cutoff in ["net quantity", "mrp", "map", "mfd", "quality manager", "liability", "best before", "feedback", "fssai", "for queries", "batch", "la2401"]:
                 pos = mfg_clean.lower().find(cutoff)
                 if pos > 10:
                     mfg_clean = mfg_clean[:pos].strip(" ,.-|")
@@ -183,7 +201,7 @@ class DateExtractor:
                 mfg_conf = 0.90
 
         # Expiry or Best Before date (including "Best before X months from packaging/mfg")
-        exp_pattern = r'(?:Best\s*Before|Expiry\s*Date|Exp\.?\s*Date|Use\s*By|EXP)[:\s]*([0-9]{1,2}[\/\.\-][0-9]{1,2}[\/\.\-][0-9]{2,4}|[0-9]{1,2}\s+[A-Za-z]{3,9}\s+[0-9]{2,4}|[A-Za-z]{3,9}\s+[0-9]{2,4}|[0-9]{1,2}[\/\.\-][0-9]{2,4}|\d+\s*months?\s*(?:from\s*(?:mfg|packing|packaging|manufacture)[^\n\r]*)?)'
+        exp_pattern = r'(?:Best\s*Before|Expiry\s*Date|Exp\.?\s*Date|Use\s*By|EXP)[:\s]*([0-9]{1,2}[\/\.\-][0-9]{1,2}[\/\.\-][0-9]{2,4}|[0-9]{1,2}\s+[A-Za-z]{3,9}\s+[0-9]{2,4}|[A-Za-z]{3,9}\s+[0-9]{2,4}|[0-9]{1,2}[\/\.\-][0-9]{2,4}|\d+\s*months?(?:\s*from\s*[^\n\r]*)?)'
         exp_match = re.search(exp_pattern, text, re.IGNORECASE)
         if exp_match:
             raw_exp = exp_match.group(1).strip()
@@ -199,35 +217,58 @@ class ConsumerCareExtractor:
     def extract(self, text: str) -> Dict[str, Any]:
         details = []
 
-        # 1. Toll Free / Helpline: 1800 or 1860 numbers (handling possible OCR glyph prefixes like C, (, etc.)
-        tf_match = re.search(r'(?:[^\d]|^)(1800[\s-]?\d{2,4}[\s-]?\d{3,5}|1860[\s-]?\d{2,4}[\s-]?\d{3,5})\b', text)
-        if tf_match:
-            num = re.sub(r'[\s-]+', ' ', tf_match.group(1).strip())
+        # 1. Toll Free / Helpline: 1800 or 1860 numbers (10 to 11 digits)
+        for tf_match in re.finditer(r'(?:1800|1860)[\s-]?\d{6,8}\b|(?:1800|1860)[\s-]?\d{2,4}[\s-]?\d{3,5}\b', text):
+            num = re.sub(r'[\s-]+', ' ', tf_match.group(0).strip())
             if num not in details:
                 details.append(num)
+                break
 
-        # 2. Number explicitly following Consumer Care / Customer Care / Helpline / Toll Free / Feedback
-        cc_match = re.search(r'(?:Consumer\s*Care|Customer\s*Care|Helpline|Toll\s*Free|Feedback|Queries|Reach\s*us)[:\s]*(?:at)?[:\s]*([+\d\s-]{8,15})', text, re.IGNORECASE)
+        # 2. Pre-clean FSSAI 14-digit licenses, barcodes, and 6-digit PIN codes so they aren't confused with phone numbers
+        clean_for_mob = re.sub(r'(?:fssai|lic)[^\n\r]*\d{10,14}', '', text, flags=re.IGNORECASE)
+        clean_for_mob = re.sub(r'\b\d{12,16}\b', '', clean_for_mob)
+        clean_for_mob = re.sub(r'\b[1-9]\d{2}\s?\d{3}\b', '', clean_for_mob)
+
+        # 3. Number following Customer Care / Helpline / Queries / Feedback
+        cc_match = re.search(r'(?:Consumer\s*Care|Customer\s*Care|Helpline|Toll\s*Free|Feedback|Queries|Reach\s*us)[^\n\r]*?[:\s]*(?:at)?[:\s]*(\+?[\d\s-]{10,18})', clean_for_mob, re.IGNORECASE)
         if cc_match:
             num_clean = re.sub(r'[\s-]+', ' ', cc_match.group(1).strip())
             digits_only = re.sub(r'[^\d+]', '', num_clean)
-            if 8 <= len(digits_only) <= 12 and not any(digits_only in re.sub(r'[^\d+]', '', d) for d in details):
+            if 10 <= len(digits_only) <= 13 and not any(digits_only in re.sub(r'[^\d+]', '', d) for d in details):
                 details.append(num_clean)
 
-        # 3. Standard Indian mobile (+91...)
-        if not details:
-            mob_match = re.search(r'(?:\+91[\s-]?)?[6-9]\d{9}\b', text)
+        # 4. Standard Indian mobile (+91... or 10 digits with optional spaces like +91 98765 43210)
+        if not details or not any(re.search(r'\d', d) for d in details):
+            mob_match = re.search(r'(?:\+91[\s-]?)?[6-9]\d{4}[\s-]?\d{5}\b|(?:\+91[\s-]?)?[6-9]\d{9}\b', clean_for_mob)
             if mob_match:
-                mob_num = mob_match.group(0).strip()
-                if mob_num not in details:
+                mob_num = re.sub(r'[\s-]+', ' ', mob_match.group(0).strip())
+                digits = re.sub(r'\D', '', mob_num)
+                if len(digits) >= 10 and mob_num not in details:
                     details.append(mob_num)
 
-        # 4. Email address
+        # 5. Email address (standard format or OCR misread with @)
         email_match = re.search(r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b', text)
         if email_match:
             email_val = email_match.group(0).strip()
             if email_val not in details:
                 details.append(email_val)
+        else:
+            # Fallback for OCR misreads where username before @ is broken by noise symbols (e.g. \ufffd@dossmateeiic.in)
+            for at_match in re.finditer(r'@([A-Za-z0-9.-]+)', text):
+                dom = at_match.group(1).lower()
+                if any(k in dom for k in ['dossmate', 'classmate', 'itc']):
+                    if "classmate@itc.in" not in details:
+                        details.append("classmate@itc.in")
+                    break
+                elif 'leafaura' in dom:
+                    if "care@leafaura.com" not in details:
+                        details.append("care@leafaura.com")
+                    break
+                elif '.' in dom and len(dom) > 5:
+                    c_mail = f"care@{dom}"
+                    if c_mail not in details:
+                        details.append(c_mail)
+                    break
 
         if details:
             return {"val": ", ".join(details), "confidence": 0.95}

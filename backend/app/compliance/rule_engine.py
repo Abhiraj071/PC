@@ -114,7 +114,7 @@ class ConsumerCareValidator:
             }
         
         digits_only = re.sub(r'\D', '', str(cc))
-        has_phone = 8 <= len(digits_only) <= 12 or bool(re.search(r'\b(?:1800|1860)[\s-]?\d{2,4}[\s-]?\d{3,5}\b', str(cc)))
+        has_phone = 8 <= len(digits_only) or bool(re.search(r'(?:1800|1860)', str(cc)))
         has_email = "@" in str(cc)
         if has_phone or has_email:
             cc_clean = cc.replace('\n', ' ').strip()
@@ -270,7 +270,7 @@ class ComplianceEngine:
             exp_status = "PASS"
             exp_details = f"Expiry / Best Before declared as '{exp_val.replace(chr(10), ' ')}'"
             exp_conf = structured_data.get("confidences", {}).get("best_before", 0.95)
-        elif category in ["Stationery & Office Supplies", "Electronics & Appliances", "Hardware & Tools", "Garments & Textiles"]:
+        elif category in ["Stationery & Office Supplies", "Electronics & Appliances", "Hardware & Tools", "Garments & Textiles"] or any(w in prod_name.lower() for w in ["pen", "pencil", "notebook", "stationery", "eraser", "marker"]):
             exp_status = "PASS"
             exp_details = "Not mandatory for non-perishable / stationery commodities (Exempt under Rule 6(1)(d))"
             exp_conf = 0.95
