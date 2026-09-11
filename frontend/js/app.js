@@ -1278,31 +1278,31 @@ async function startAnalysisPipeline() {
     const interval = setInterval(() => {
         const elapsed = (Date.now() - startTime) / 1000;
 
-        if (elapsed < 1.5) {
-            progress = Math.min(25, Math.round(progress + 4));
+        if (elapsed < 2.0) {
+            progress = Math.min(25, Math.round(progress + 3));
             updateStepUI(1);
-        } else if (elapsed < 5.0) {
-            progress = Math.min(60, Math.round(progress + 3));
+        } else if (elapsed < 8.0) {
+            progress = Math.min(60, Math.round(progress + 2));
             updateStepUI(2);
-        } else if (elapsed < 10.0) {
-            progress = Math.min(85, Math.round(progress + 2));
+        } else if (elapsed < 16.0) {
+            progress = Math.min(85, Math.round(progress + 1.5));
             updateStepUI(3);
         } else {
-            progress = Math.min(94, Math.round(progress + 1));
-            updateStepUI(3);
-            if (timeoutBox) timeoutBox.classList.remove('d-none');
+            progress = Math.min(94, Math.round(progress + 0.5));
+            updateStepUI(4);
+            if (elapsed > 25.0 && timeoutBox) timeoutBox.classList.remove('d-none');
         }
 
         if (progressBar) progressBar.style.width = `${progress}%`;
         if (percentText) percentText.innerText = `${progress}%`;
     }, 300);
 
-    // Setup abort controller with 35s timeout
+    // Setup abort controller with 90s timeout for safety on free tiers and cold starts
     const abortController = new AbortController();
     appState.analysisAbortController = abortController;
     const timeoutId = setTimeout(() => {
         abortController.abort();
-    }, 35000);
+    }, 90000);
 
     // Execute Backend Tesseract OCR & AI Extraction
     fetch(`${API_BASE}/api/analysis/${scanId}`, {

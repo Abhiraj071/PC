@@ -69,9 +69,9 @@ def run_analysis(scan_id: str, db: Session = Depends(get_db)):
     confidences = []
     qualities = []
 
-    # Process side images with conservative concurrency (max 2 workers) to prevent memory spikes on cloud instances
+    # Process side images concurrently (max 3 workers)
     from concurrent.futures import ThreadPoolExecutor
-    max_workers = min(2, len(side_images)) if side_images else 1
+    max_workers = min(3, len(side_images)) if side_images else 1
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         results = list(executor.map(ocr_extractor.extract, side_images))
 

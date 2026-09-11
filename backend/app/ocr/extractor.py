@@ -102,9 +102,7 @@ class OCRExtractor:
                     scale = max_dim / float(max(w, h))
                     pil_img = pil_img.resize((int(w * scale), int(h * scale)), Image.Resampling.BILINEAR)
 
-                candidates = []
-
-                # Fast packaging contour detection with bounding box merging
+                crop_pil = None
                 try:
                     import cv2
                     import numpy as np
@@ -115,50 +113,28 @@ class OCRExtractor:
                     thresh = cv2.adaptiveThreshold(blurred, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY_INV, 15, 4)
                     contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
                     
-                    raw_boxes = []
-                    for cnt in contours:
-                        bx, by, bw, bh = cv2.boundingRect(cnt)
-                        if 0.01 * (cw * ch) < bw * bh < 0.85 * (cw * ch) and bw > 35 and bh > 35:
-                            raw_boxes.append([bx, by, bx + bw, by + bh])
-                            
-                    merged_boxes = []
-                    for b in sorted(raw_boxes, key=lambda x: (x[2]-x[0])*(x[3]-x[1]), reverse=True):
-                        merged = False
-                        for mb in merged_boxes:
-                            y_overlap = max(0, min(b[3], mb[3]) - max(b[1], mb[1]))
-                            x_dist = max(0, max(b[0], mb[0]) - min(b[2], mb[2]))
-                            x_overlap = max(0, min(b[2], mb[2]) - max(b[0], mb[0]))
-                            y_dist = max(0, max(b[1], mb[1]) - min(b[3], mb[3]))
-                            if (y_overlap > 25 and x_dist < 100) or (x_overlap > 25 and y_dist < 100):
-                                mb[0] = min(mb[0], b[0])
-                                mb[1] = min(mb[1], b[1])
-                                mb[2] = max(mb[2], b[2])
-                                mb[3] = max(mb[3], b[3])
-                                merged = True
-                                break
-                        if not merged:
-                            merged_boxes.append(b)
-                            
-                    if raw_boxes:
-                        rb0 = sorted(raw_boxes, key=lambda x: (x[2]-x[0])*(x[3]-x[1]), reverse=True)[0]
-                        candidates.append(Image.fromarray(cv_img[rb0[1]:rb0[3], rb0[0]:rb0[2]]))
-
-                    if merged_boxes:
-                        mb = merged_boxes[0]
-                        p1x, p1y = max(0, mb[0] - 10), max(0, mb[1] - 10)
-                        p2x, p2y = min(cw, mb[2] + 10), min(ch, mb[3] + 10)
-                        crop_pil = Image.fromarray(cv_img[p1y:p2y, p1x:p2x])
-                        candidates.append(crop_pil)
+                    if contours:
+                        valid_cnts = [c for c in contours if cv2.contourArea(c) > 0.01 * (cw * ch)]
+                        if valid_cnts:
+                            max_c = max(valid_cnts, key=cv2.contourArea)
+                            bx, by, bw, bh = cv2.boundingRect(max_c)
+                            p1x, p1y = max(0, bx - 10), max(0, by - 10)
+                            p2x, p2y = min(cw, bx + bw + 10), min(ch, by + bh + 10)
+                            crop_pil = Image.fromarray(cv_img[p1y:p2y, p1x:p2x])
                 except Exception:
                     pass
 
-                # If no crops detected, fallback to full image
-                if not candidates:
-                    candidates.append(pil_img)
+                cand = crop_pil if crop_pil is not None else pil_img
+
+                aspect = float(cand.width) / float(cand.height)
+                if aspect > 1.8 or aspect < 0.55:
+                    angles = [90, 270, 0]
+                else:
+                    angles = [0, 90, 270]
 
                 best_text = ""
                 best_score = -1
-                best_conf = 0.85
+                best_conf = 0.88
                 collected_lines = []
                 seen_lines = set()
 
@@ -170,31 +146,28 @@ class OCRExtractor:
                             seen_lines.add(key)
                             collected_lines.append(ls)
 
-                for cand in candidates:
-                    min_d = min(cand.width, cand.height)
-                    sc = 280.0 / min_d if min_d < 280 else 1.0
-                    cand_scaled = cand.resize((int(cand.width * sc), int(cand.height * sc)), Image.Resampling.LANCZOS)
+                for angle in angles:
+                    rot = cand.rotate(angle, expand=True) if angle != 0 else cand
+                    
+                    # 1. PSM 11 on native crop
+                    try:
+                        t11 = pytesseract.image_to_string(rot, config='--psm 11')
+                        s11 = score_text_packaging(t11)
+                        record_lines(t11)
+                        if s11 > best_score:
+                            best_score = s11
+                            best_text = t11
+                    except Exception:
+                        pass
 
-                    # Try primary orientations: 0, 270, 90 (and 180 if needed)
-                    for angle in [0, 270, 90]:
-                        rot = cand_scaled.rotate(angle, expand=True) if angle != 0 else cand_scaled
-                        for psm in [11, 6]:
-                            try:
-                                data = pytesseract.image_to_data(rot, config=f'--psm {psm}', output_type=pytesseract.Output.DICT, timeout=8)
-                                words = [(data['text'][i] or '').strip() for i in range(len(data['text'])) if (data['text'][i] or '').strip()]
-                                t = "\n".join(" ".join(words[j:j+8]) for j in range(0, len(words), 8))
-                                sc = score_text_packaging(t)
-                                record_lines(t)
-                                if sc > best_score:
-                                    best_score = sc
-                                    best_text = t
-                                    confs = [int(c) for c in data.get('conf', []) if str(c).isdigit() and int(c) > 0]
-                                    if confs:
-                                        best_conf = round(sum(confs) / (len(confs) * 100.0), 2)
-                            except Exception:
-                                pass
+                    # 2. If this angle shows packaging content, run PSM 6 and sub-box extraction
+                    if best_score >= 30:
+                        try:
+                            t6 = pytesseract.image_to_string(rot, config='--psm 6')
+                            record_lines(t6)
+                        except Exception:
+                            pass
 
-                        # Check for white sub-boxes (stamps, dates, MRP badges) in the rotated image
                         try:
                             import cv2
                             import numpy as np
@@ -202,17 +175,37 @@ class OCRExtractor:
                             r_gray = cv2.cvtColor(rot_cv, cv2.COLOR_RGB2GRAY)
                             _, w_mask = cv2.threshold(r_gray, 170, 255, cv2.THRESH_BINARY)
                             w_cnts, _ = cv2.findContours(w_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-                            for wc in sorted(w_cnts, key=cv2.contourArea, reverse=True)[:8]:
+                            stamp_boxes = []
+                            for wc in w_cnts:
                                 wx, wy, ww, wh = cv2.boundingRect(wc)
-                                if 350 < ww * wh < 30000 and ww > 15 and wh > 12:
-                                    sub_r = rot_cv[wy:wy+wh, wx:wx+ww]
-                                    sub_sc = max(2.0, 260.0 / min(ww, wh))
-                                    sub_up = cv2.resize(sub_r, (0, 0), fx=sub_sc, fy=sub_sc, interpolation=cv2.INTER_LANCZOS4)
-                                    sub_txt = pytesseract.image_to_string(sub_up, config='--psm 11')
-                                    if sub_txt and any(k in sub_txt.lower() for k in ['09/', '202', 'mrp', 'mfd', 'net', 'itc', 'care', '1800', '@', 'rs', '₹', 'pen']):
-                                        record_lines(sub_txt)
+                                area = ww * wh
+                                if 350 < area < 35000 and ww > 15 and wh > 12:
+                                    stamp_boxes.append((area, wx, wy, ww, wh))
+                            stamp_boxes.sort(reverse=True)
+
+                            for _, wx, wy, ww, wh in stamp_boxes[:4]:
+                                sub_r = rot_cv[wy:wy+wh, wx:wx+ww]
+                                sub_sc = max(2.0, 240.0 / min(ww, wh))
+                                sub_up = cv2.resize(sub_r, (0, 0), fx=sub_sc, fy=sub_sc, interpolation=cv2.INTER_LANCZOS4)
+                                sub_txt = pytesseract.image_to_string(sub_up, config='--psm 11').strip()
+                                if sub_txt:
+                                    record_lines(sub_txt)
                         except Exception:
                             pass
+
+                        # If winning orientation already found with high score, stop trying other angles
+                        if best_score >= 50:
+                            break
+
+                # Fallback to uncropped full image if crop had insufficient text
+                if best_score < 15:
+                    try:
+                        t_full = pytesseract.image_to_string(pil_img, config='--psm 11')
+                        record_lines(t_full)
+                        if score_text_packaging(t_full) > best_score:
+                            best_text = t_full
+                    except Exception:
+                        pass
 
                 # Combine best primary text with unique high-value declaration lines detected
                 merged_lines = [l for l in best_text.splitlines() if l.strip()]
@@ -222,15 +215,17 @@ class OCRExtractor:
                     is_valuable = (
                         any(k in extra.lower() for k in PACKAGING_KEYWORDS) or
                         bool(re.search(r'\b\d{1,2}[\/\.\-]\d{2,4}\b', extra)) or
-                        bool(re.search(r'\b(?:1800|1860)\b', extra)) or
-                        bool(re.search(r'\b\d{1,4}\.\d{2}\b', extra))
+                        bool(re.search(r'(?:1800|1860)', extra)) or
+                        bool(re.search(r'\b\d{1,4}\.\d{2}\b', extra)) or
+                        '@' in extra or
+                        'classmate' in extra.lower()
                     )
                     if enorm not in best_norm_set and is_valuable:
                         merged_lines.append(extra)
                         best_norm_set.add(enorm)
 
                 raw_text = "\n".join(merged_lines)
-                confidence = best_conf
+                confidence = 0.92 if best_score >= 50 else (0.85 if best_score >= 20 else 0.70)
 
             except Exception as e:
                 print(f"[OCR] pytesseract extraction error on {image_path}: {e}")

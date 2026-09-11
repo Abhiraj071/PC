@@ -38,7 +38,7 @@ class ProductCategoryDetector:
         return "Packaged Commodities"
 
 KNOWN_COMMODITIES = [
-    r"Gel Pen", r"Ball Point Pen", r"Ball Pen", r"Pen", r"Pencil", r"Notebook", r"Marker", r"Highlighter", r"Eraser", r"Sharpener", r"Geometry Box", r"Scale",
+    r"Gel\s*Pen", r"Gel\s*Pe[nm]?", r"Ball\s*Point\s*Pen", r"Ball\s*Pen", r"Ball\s*Pe[nm]?", r"Pen", r"Pe[nm]\b", r"Pencil", r"Notebook", r"Marker", r"Highlighter", r"Eraser", r"Sharpener", r"Geometry Box", r"Scale",
     r"Classic Potato Chips", r"Potato Chips", r"Potato Wafers", r"Banana Chips", r"Chips", r"Crisps",
     r"Butter Cookies", r"Cookies", r"Cream Biscuits", r"Marie Biscuits", r"Glucose Biscuits", r"Biscuits", r"Rusk",
     r"Aloo Bhujia", r"Bhujia", r"Sev", r"Khatta Meetha", r"Moong Dal", r"Namkeen", r"Mixture",
@@ -73,11 +73,11 @@ KNOWN_BRANDS = [
 
 class MRPExtractor:
     def extract(self, text: str) -> Dict[str, Any]:
-        # Regex for MRP declaration (allowing common OCR misread MAP, colons, dots, equal signs, Rs/Rss)
-        mrp_pattern = r'(?:MRP|M\.R\.P\.|MAP|Max\.?\s*Retail\s*Price|Retail\s*Price|Price)[:\s\.\=]*(?:Rs+\.?|₹|INR)?\s*(\d+(?:\.\d{1,2})?)\s*(?:\/-|\.)?'
+        # Regex for MRP declaration (allowing common OCR misread MAP, colons, dots, equal signs, Rs/Rss/Rs,)
+        mrp_pattern = r'(?:MRP|M\.R\.P\.|MAP|Max\.?\s*Retail\s*Price|Retail\s*Price|Price)[:\s\.\=]*(?:Rs+[.,]?|₹|INR)?\s*(\d+(?:\.\d{1,2})?)\s*(?:\/-|\.)?'
         match = re.search(mrp_pattern, text, re.IGNORECASE)
         
-        has_taxes = bool(re.search(r'(?:incl|inclusive)[^\n\r]*(?:all|ail)\s*taxes|(?:of\s*(?:all|ail)\s*taxes)', text, re.IGNORECASE))
+        has_taxes = bool(re.search(r'(?:incl|inclusive|nck)[^\n\r]*(?:all|ail)?\s*taxes|(?:of\s*(?:all|ail)\s*taxes)|nck\b', text, re.IGNORECASE))
         
         if match:
             price_val = match.group(1).strip()
@@ -88,7 +88,7 @@ class MRPExtractor:
             }
         
         # Fallback numeric price search with currency symbol, avoiding years 2020-2030
-        curr_match = re.search(r'(?:₹|Rs+\.?\s*)\s*(\d{1,4}(?:\.\d{1,2})?)\s*(?:\/-)?(?:\s*(?:incl|inclusive)[^\n]*)?', text, re.IGNORECASE)
+        curr_match = re.search(r'(?:₹|Rs+[.,]?\s*)\s*(\d{1,4}(?:\.\d{1,2})?)\s*(?:\/-)?(?:\s*(?:incl|inclusive|nck)[^\n]*)?', text, re.IGNORECASE)
         if curr_match:
             price_val = curr_match.group(1).strip()
             if price_val not in ["2023", "2024", "2025", "2026", "2027"]:
@@ -148,12 +148,12 @@ class QuantityExtractor:
 
 class ManufacturerExtractor:
     def extract(self, text: str) -> Dict[str, Any]:
-        pattern = r'(?:Mfd\.?\s*(?:&|and)?\s*Mkt\.?\s*by|Manufactured\s*(?:&|and)?\s*Marketed\s*by|Manufactured\s*by|Marketed\s*by|Packed\s*by|Mkd\.\s*by|Imported\s*by|Mfg\.?\s*by|Manufacturer)[:\s]*([^\n\r]+(?:\n[^\n\r]+){0,4})'
+        pattern = r'(?:Mfd\.?\s*(?:&|and)?\s*Mkt\.?\s*by|Manufactured\s*(?:&|and)?\s*Marketed\s*by|Manufactured\s*by|Mortactured\s*by|Marketed\s*by|Meskated\s*by|Packed\s*by|Mkd\.\s*by|Imported\s*by|Mfg\.?\s*by|Mktg\.?\s*by|Mktd\.?\s*by|Manufacturer)[:\s]*([^\n\r]+(?:\n[^\n\r]+){0,4})'
         match = re.search(pattern, text, re.IGNORECASE)
         if match:
             mfg_text = match.group(0).replace('\n', ', ')
             mfg_clean = re.sub(r'\s+', ' ', mfg_text).strip(" ,.-|")
-            for cutoff in ["net quantity", "mrp", "mfd", "quality manager", "liability", "best before", "feedback"]:
+            for cutoff in ["net quantity", "mrp", "map", "mfd", "quality manager", "liability", "best before", "feedback"]:
                 pos = mfg_clean.lower().find(cutoff)
                 if pos > 10:
                     mfg_clean = mfg_clean[:pos].strip(" ,.-|")
@@ -256,7 +256,15 @@ class AIInfoExtractor:
         for comm_regex in KNOWN_COMMODITIES:
             comm_match = re.search(r'\b' + comm_regex + r'\b', text_for_prod, re.IGNORECASE)
             if comm_match:
-                product_name = comm_match.group(0).strip()
+                raw_prod = comm_match.group(0).strip()
+                if re.match(r'Gel\s*Pe[nm]?', raw_prod, re.IGNORECASE):
+                    product_name = "Gel Pen"
+                elif re.match(r'Ball\s*Pe[nm]?', raw_prod, re.IGNORECASE):
+                    product_name = "Ball Pen"
+                elif re.match(r'Pe[nm]\b', raw_prod, re.IGNORECASE):
+                    product_name = "Pen"
+                else:
+                    product_name = raw_prod
                 break
 
         # Detect Brand Name
