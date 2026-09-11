@@ -79,7 +79,7 @@ class MRPExtractor:
         mrp_pattern = r'(?:MRP|M\.R\.P\.|MAP|Max\.?\s*Retail\s*Price|Retail\s*Price|Price)[:\s\.\=]*(?:Rs+[.,]?|₹|INR|[2\?])?[:\s\.\=]*(\d{2,5}(?:\.\d{1,2})?|\d{1,4}\.\d{2})'
         match = re.search(mrp_pattern, text, re.IGNORECASE)
         
-        has_taxes = bool(re.search(r'(?:incl|inclusive|nck|ick|ire|excl)?[^\n\r]*(?:all|ail|al)\s*taxes|(?:of\s*(?:all|ail|al)\s*taxes)|\btaxes\b', text, re.IGNORECASE))
+        has_taxes = bool(re.search(r'(?:incl|inclusive|nck|ick|ire|excl|int)?[^\n\r]*(?:all|ail|al)?\s*taxes|(?:of\s*(?:all|ail|al)\s*taxes)|\btaxes\b|\bincl\.?|\binclusive\b', text, re.IGNORECASE))
         
         if match:
             price_val = match.group(1).strip()
@@ -117,7 +117,7 @@ class QuantityExtractor:
         clean_text_sub = re.sub(r'\bS([0-9])\b|\b([0-9])O\b|\bSO\b', lambda m: m.group(0).replace('S', '5').replace('O', '0'), clean_text)
 
         # Dual count + net weight (e.g. "25 Tea Bags (50 g)")
-        count_m = re.search(r'\b(\d+)\s*(?:\n[^\n\r]*\n|\s+)*(Tea\s*Bags?|Bags?|Gel\s*Pens?|Pens?|Pieces?|Pcs|Units?)\b', clean_text, re.IGNORECASE)
+        count_m = re.search(r'\b(\d+)\s*(?:\n[^\n\r]*\n|\s+)*(Tea\s*Bags?|Bags?|Gel\s*Pe[nm]?s?|Ball\s*Pe[nm]?s?|Pens?|Pencils?|Pieces?|Pcs|Units?)\b', clean_text, re.IGNORECASE)
         net_m = re.search(r'(?:Net\s*(?:Wt|Weight|Quantity|Qty|By|yy|ty|Oty|oy))[:\.\s]*(\d+(?:\.\d+)?\s*(?:kg|g|gm|gms|ml|l))\b', clean_text_sub, re.IGNORECASE)
         if count_m and net_m:
             return {
@@ -126,7 +126,7 @@ class QuantityExtractor:
             }
 
         # Primary: Look for explicit Net Weight / Quantity keywords
-        pattern = r'(?:Net\s*(?:Wt|Weight|Quantity|Qty|Vol|Volume|Contents?|By|yy|ty|Oty|oy)|Weight|Volume|Quantity)[:\.\s]*\n*(?:\|\s*)?(\d+(?:\.\d+)?\s*(?:kg|g|gm|gms|ml|mL|l|L|ltr|litres|count|units?|N\b|n\b|pieces?|pcs|gel\s*pens?|pens?|pencils?|erasers?|items?|u\b))\b'
+        pattern = r'(?:Net\s*(?:Wt|Weight|Quantity|Qty|Vol|Volume|Contents?|By|yy|ty|Oty|oy)|Weight|Volume|Quantity)[:\.\s]*\n*(?:\|\s*)?(\d+(?:\.\d+)?\s*(?:kg|g|gm|gms|ml|mL|l|L|ltr|litres|count|units?|N\b|n\b|pieces?|pcs|gel\s*pe[nm]?s?|pens?|pencils?|erasers?|items?|u\b))\b'
         match = re.search(pattern, clean_text_sub, re.IGNORECASE)
         if match:
             raw_qty = match.group(1).strip()
@@ -134,25 +134,30 @@ class QuantityExtractor:
             return {"val": clean_qty, "confidence": 0.98}
 
         # Check Net Quantity followed by unit/item name without explicit digit or with digit
-        net_item_match = re.search(r'(?:Net\s*(?:Quantity|Qty|Contents?))[:\.\s]*\n*(?:\|\s*)?(\d+)?\s*(Gel\s*Pen|Ball\s*Pen|Pen|Pencil|Notebook|Piece|Unit|Item|Pcs|Tea\s*Bags?)\b', clean_text, re.IGNORECASE)
+        net_item_match = re.search(r'(?:Net\s*(?:Quantity|Qty|Contents?))[:\.\s]*\n*(?:\|\s*)?(\d+)?\s*(Gel\s*Pe[nm]?s?|Ball\s*Pe[nm]?s?|Pen|Pencil|Notebook|Piece|Unit|Item|Pcs|Tea\s*Bags?)\b', clean_text, re.IGNORECASE)
         if net_item_match:
             num = net_item_match.group(1) or "1"
             unit = net_item_match.group(2).strip()
+            if re.match(r'Gel\s*Pe', unit, re.IGNORECASE):
+                unit = "Gel Pen"
             return {"val": f"{num} {unit}", "confidence": 0.95}
 
         # Secondary: Explicit count units like 1 Gel Pen, 25 Tea Bags, 10 Pcs
         if count_m:
-            return {"val": f"{count_m.group(1)} {count_m.group(2).title()}", "confidence": 0.95}
+            c_unit = count_m.group(2).title()
+            if "Gel" in c_unit:
+                c_unit = "Gel Pen"
+            return {"val": f"{count_m.group(1)} {c_unit}", "confidence": 0.95}
         
-        count_match = re.search(r'\b(\d+\s*(?:Gel\s*Pen|Ball\s*Pen|Pen|Pens|Pencil|Pencils|N\b|U\b|Piece|Pieces|Pcs|Count|Units?|Tea\s*Bags?))\b', clean_text, re.IGNORECASE)
+        count_match = re.search(r'\b(\d+\s*(?:Gel\s*Pe[nm]?s?|Ball\s*Pe[nm]?s?|Pen|Pens|Pencil|Pencils|N\b|U\b|Piece|Pieces|Pcs|Count|Units?|Tea\s*Bags?))\b', clean_text, re.IGNORECASE)
         if count_match:
             raw_qty = count_match.group(1).strip()
             return {"val": raw_qty, "confidence": 0.95}
 
-        # Standalone metric quantities on non-nutrition lines
+        # Standalone metric quantities on non-nutrition lines (ignoring 'Ltd')
         for line in non_nutrition_lines:
             line_sub = re.sub(r'\bS([0-9])\b|\b([0-9])O\b|\bSO\b', lambda m: m.group(0).replace('S', '5').replace('O', '0'), line)
-            fallback_match = re.search(r'\b(\d+(?:\.\d+)?\s*(?:kg|g|gm|gms|ml|mL|l|L|ltr|N\b))\b', line_sub, re.IGNORECASE)
+            fallback_match = re.search(r'\b(\d+(?:\.\d+)?\s*(?:kg|g|gm|gms|ml|mL|ltr|L(?!\s*td)|l(?!\s*td)|N\b))\b', line_sub, re.IGNORECASE)
             if fallback_match:
                 raw_qty = fallback_match.group(1).strip()
                 clean_qty = re.sub(r'(\d+)\s*([A-Za-z]+)', r'\1 \2', raw_qty)

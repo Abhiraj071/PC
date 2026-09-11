@@ -122,17 +122,23 @@ class OCRExtractor:
                     if raw_boxes:
                         merged_boxes = []
                         for b in sorted(raw_boxes, key=lambda x: (x[2]-x[0])*(x[3]-x[1]), reverse=True):
+                            b_area = (b[2]-b[0]) * (b[3]-b[1])
                             merged = False
                             for mb in merged_boxes:
+                                mb_area = (mb[2]-mb[0]) * (mb[3]-mb[1])
+                                m_x1 = min(mb[0], b[0])
+                                m_y1 = min(mb[1], b[1])
+                                m_x2 = max(mb[2], b[2])
+                                m_y2 = max(mb[3], b[3])
+                                m_area = (m_x2 - m_x1) * (m_y2 - m_y1)
+
                                 y_overlap = max(0, min(b[3], mb[3]) - max(b[1], mb[1]))
                                 x_dist = max(0, max(b[0], mb[0]) - min(b[2], mb[2]))
                                 x_overlap = max(0, min(b[2], mb[2]) - max(b[0], mb[0]))
                                 y_dist = max(0, max(b[1], mb[1]) - min(b[3], mb[3]))
-                                if (y_overlap > 25 and x_dist < 100) or (x_overlap > 25 and y_dist < 100):
-                                    mb[0] = min(mb[0], b[0])
-                                    mb[1] = min(mb[1], b[1])
-                                    mb[2] = max(mb[2], b[2])
-                                    mb[3] = max(mb[3], b[3])
+                                # Only merge if spatial overlap/proximity AND merged bounding box is compact (not huge empty whitespace)
+                                if ((y_overlap > 20 and x_dist < 60) or (x_overlap > 20 and y_dist < 60)) and m_area <= 1.45 * (mb_area + b_area):
+                                    mb[0], mb[1], mb[2], mb[3] = m_x1, m_y1, m_x2, m_y2
                                     merged = True
                                     break
                             if not merged:
@@ -158,8 +164,12 @@ class OCRExtractor:
                 else:
                     cand_scaled = cand
 
-                if aspect > 1.8 or aspect < 0.55:
-                    angles = [270, 90]
+                if aspect > 1.8:
+                    # Horizontal slender package (pen lying flat): text along pen is read at 90 deg, or 270 / 0
+                    angles = [90, 270, 0]
+                elif aspect < 0.55:
+                    # Vertical slender package (pen standing): text along pen is read at 270 deg or 90
+                    angles = [270, 90, 0]
                 else:
                     angles = [0, 90, 270]
 
@@ -226,9 +236,10 @@ class OCRExtractor:
 
                             for _, wx, wy, ww, wh in stamp_boxes[:8]:
                                 sub_r = rot_cv[wy:wy+wh, wx:wx+ww]
-                                sub_sc = max(2.0, 240.0 / min(ww, wh))
-                                sub_up = cv2.resize(sub_r, (0, 0), fx=sub_sc, fy=sub_sc, interpolation=cv2.INTER_LANCZOS4)
-                                sub_txt = pytesseract.image_to_string(sub_up, config='--psm 11').strip()
+                                sub_txt = pytesseract.image_to_string(sub_r, config='--psm 11').strip()
+                                if not sub_txt or len(sub_txt) < 3:
+                                    sub_up = cv2.resize(sub_r, (0, 0), fx=2.0, fy=2.0, interpolation=cv2.INTER_LANCZOS4)
+                                    sub_txt = pytesseract.image_to_string(sub_up, config='--psm 6').strip()
                                 if sub_txt:
                                     record_lines(sub_txt)
                         except Exception:
